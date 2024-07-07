@@ -3,6 +3,7 @@ import { createFullEndpoint } from '#root/utils/apiUtils.js';
 import { ToastContainer, toast, Bounce, Id as ToastId } from 'react-toastify';
 import PendingModal from '#root/src/components/PendingModal';
 import { formatTimeBalance } from '#root/utils/formattingUtils';
+import 'image-capture';
 
 import 'react-toastify/dist/ReactToastify.css';
 const FRAME_WIDTH = 512;
