@@ -32,7 +32,7 @@ export default function IndexPage() {
   return (
     <div className="flex justify-center items-center">
       <SignedIn>
-        <div className="flex flex-col justify-center mt-4">
+        <div className="flex flex-col justify-center">
           {dbUser && dbUser.timeBalance <= 0 && (
             <div className="text-center justify-center items-center p-8">
               <p className="mb-4">

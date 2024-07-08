@@ -75,6 +75,7 @@ export default {
         'h-[93vh]',
         'h-[72vh]',
         'h-[6vh]',
+        'hidden',
       ],
     },
   },

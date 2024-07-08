@@ -776,14 +776,14 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   }, [warp?.id, warp?.podStatus]);
 
   return (
-    <div className="bg-[#121212] text-[#e0e0e0] font-sans flex flex-col items-center p-5">
+    <div className="bg-[#121212] text-[#e0e0e0] font-sans flex flex-col items-center px-5">
       {warp?.podStatus === 'PENDING' && (
         <PendingModal
           progress={podSetupProgress}
           handleClickEndWarp={handleClickEndWarp}
         />
       )}
-      <h2 className="w-full text-xl font-bold mb-6 text-blue-400 text-center">
+      <h2 className="w-full text-sm sm:text-lg font-bold my-2 text-blue-400 text-center">
         Time remaining:{' '}
         {calcualatedTimeRemaining
           ? formatTimeBalance(calcualatedTimeRemaining)
@@ -797,7 +797,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             setSelectedDeviceId(e.target.value);
             // startVideoStream(e.target.value);
           }}
-          className="w-full p-3 mb-5 border border-[#4a4a4a] rounded-md text-base bg-[#1e1e1e] text-[#e0e0e0]"
+          className="w-full p-1 sm:p-3 mb-2 border border-[#4a4a4a] rounded-md bg-[#1e1e1e] text-[#e0e0e0] text-sm sm:text-md"
         >
           {devices.map(device => (
             <option key={device.deviceId} value={device.deviceId}>
@@ -809,7 +809,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         <select
           value={selectedPrompt}
           onChange={e => setSelectedPrompt(e.target.value)}
-          className="w-full p-3 mb-5 border border-[#4a4a4a] rounded-md text-base bg-[#1e1e1e] text-[#e0e0e0]"
+          className="w-full p-1 sm:p-3 mb-2 border border-[#4a4a4a] rounded-md bg-[#1e1e1e] text-[#e0e0e0] text-sm sm:text-md"
         >
           {promptLibraryOptions.map(option => (
             <option key={option.label} value={option.value}>
@@ -828,7 +828,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             }
           }}
           placeholder="Enter prompt..."
-          className="w-full p-3 mb-5 border border-[#4a4a4a] rounded-md text-base bg-[#1e1e1e] text-[#e0e0e0] resize-y min-h-[100px]"
+          className="w-full p-1 sm:p-3 mb-2 border border-[#4a4a4a] rounded-md bg-[#1e1e1e] text-[#e0e0e0] resize-y min-h-[100px] text-sm sm:text-md"
         />
 
         <input
@@ -842,7 +842,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             }
           }}
           placeholder="Post text, appended to all prompts. Helps to describe yourself"
-          className="w-full p-3 mb-5 border border-[#4a4a4a] rounded-md text-base bg-[#1e1e1e] text-[#e0e0e0]"
+          className="w-full p-1 sm:p-3 mb-2 border border-[#4a4a4a] rounded-md bg-[#1e1e1e] text-[#e0e0e0] text-sm sm:text-md"
         />
         <div className="flex flex-wrap justify-center gap-2 my-3">
           <button
@@ -913,7 +913,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             ref={processedCanvasRef}
             width={FRAME_WIDTH}
             height={FRAME_HEIGHT}
-            className="w-full sm:w-1/2 max-w-[512px] rounded-md shadow-md mb-5 sm:mb-0 sm:ml-2"
+            className={`w-full sm:w-1/2 max-w-[512px] rounded-md shadow-md mb-5 sm:mb-0 sm:ml-2${
+              isStreamingRef?.current ? '' : ' hidden'
+            }`}
           />
         </div>
       </div>
