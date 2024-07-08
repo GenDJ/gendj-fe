@@ -778,7 +778,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   return (
     <div className="bg-[#121212] text-[#e0e0e0] font-sans flex flex-col items-center p-5">
       {warp?.podStatus === 'PENDING' && (
-        <PendingModal progress={podSetupProgress} />
+        <PendingModal
+          progress={podSetupProgress}
+          handleClickEndWarp={handleClickEndWarp}
+        />
       )}
       <h2 className="w-full text-xl font-bold mb-6 text-blue-400 text-center">
         Time remaining:{' '}

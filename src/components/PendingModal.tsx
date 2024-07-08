@@ -1,24 +1,27 @@
 import React from 'react';
 
-const PendingModal: React.FC<{ progress: number }> = ({ progress }) => {
+const PendingModal: React.FC<{
+  progress: number;
+  handleClickEndWarp: () => void;
+}> = ({ progress, handleClickEndWarp }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-b from-gray-800 to-gray-900 text-gray-100 p-8 rounded-xl shadow-2xl max-w-2xl w-full border border-gray-700">
-        <h2 className="text-3xl font-bold mb-6 text-blue-400 text-center">
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-gradient-to-b from-gray-800 to-gray-900 text-gray-100 p-4 sm:p-8 rounded-xl shadow-2xl max-w-2xl w-full border border-gray-700">
+        <h2 className="text-xl sm:text-3xl font-bold mb-3 sm:mb-6 text-blue-400 text-center">
           Starting up your private server
         </h2>
-        <p className="text-xl mb-6 text-gray-300">
+        <p className="text-sm sm:text-xl mb-3 sm:mb-6 text-gray-300">
           Realtime webcam warping requires significant computing power. Startup
           takes 1-5 minutes and WILL NOT be counted against your account warping
           time.
         </p>
-        <p className="text-2xl font-semibold mb-6 text-blue-300 text-center">
+        <p className="text-lg sm:text-2xl font-semibold mb-3 sm:mb-6 text-blue-300 text-center">
           In the meantime...
         </p>
-        <ul className="space-y-6 mb-8">
+        <ul className="space-y-3 sm:space-y-6 mb-4 sm:mb-8 text-sm sm:text-base">
           <li className="flex items-start">
             <svg
-              className="w-6 h-6 text-blue-400 mr-2 mt-1 flex-shrink-0"
+              className="w-4 h-4 sm:w-6 sm:h-6 text-blue-400 mr-2 mt-1 flex-shrink-0"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -40,7 +43,7 @@ const PendingModal: React.FC<{ progress: number }> = ({ progress }) => {
           </li>
           <li className="flex items-start">
             <svg
-              className="w-6 h-6 text-blue-400 mr-2 mt-1 flex-shrink-0"
+              className="w-4 h-4 sm:w-6 sm:h-6 text-blue-400 mr-2 mt-1 flex-shrink-0"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -64,7 +67,7 @@ const PendingModal: React.FC<{ progress: number }> = ({ progress }) => {
           </li>
           <li className="flex items-start">
             <svg
-              className="w-6 h-6 text-blue-400 mr-2 mt-1 flex-shrink-0"
+              className="w-4 h-4 sm:w-6 sm:h-6 text-blue-400 mr-2 mt-1 flex-shrink-0"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -78,10 +81,10 @@ const PendingModal: React.FC<{ progress: number }> = ({ progress }) => {
               />
             </svg>
             <div>
-              <span className="block mb-2">
-                Follow @MrAsissted on social networks:
+              <span className="block mb-1 sm:mb-2">
+                Follow @MrAssisted on social networks:
               </span>
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-wrap gap-2 sm:gap-4">
                 {[
                   {
                     name: 'Instagram',
@@ -109,10 +112,10 @@ const PendingModal: React.FC<{ progress: number }> = ({ progress }) => {
                     href={platform.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 transition-colors duration-300 flex items-center"
+                    className="text-blue-400 hover:text-blue-300 transition-colors duration-300 flex items-center text-xs sm:text-sm"
                   >
                     <svg
-                      className="w-6 h-6 mr-1"
+                      className="w-4 h-4 sm:w-6 sm:h-6 mr-1"
                       fill="currentColor"
                       viewBox="0 0 24 24"
                       xmlns="http://www.w3.org/2000/svg"
@@ -126,21 +129,29 @@ const PendingModal: React.FC<{ progress: number }> = ({ progress }) => {
             </div>
           </li>
         </ul>
-        <div className="w-full bg-gray-700 rounded-full h-4 mb-4">
+        <div className="w-full bg-gray-700 rounded-full h-3 sm:h-4 mb-2 sm:mb-4">
           <div
-            className="bg-blue-500 h-4 rounded-full transition-all duration-300 ease-out"
+            className="bg-blue-500 h-3 sm:h-4 rounded-full transition-all duration-300 ease-out"
             style={{ width: `${progress}%` }}
           ></div>
         </div>
-        <p className="text-center text-lg font-semibold text-blue-300">
+        <p className="text-center text-sm sm:text-lg font-semibold text-blue-300">
           Progress: {progress}%
           {progress === 100 && (
-            <span className="block mt-2 text-blue-400">
+            <span className="block mt-1 sm:mt-2 text-xs sm:text-sm text-blue-400">
               Ok honestly that timing was a guess. If it's still loading please
               continue to wait, sorry.
             </span>
           )}
         </p>
+        <div className='text-center my-4'>
+          <button
+            onClick={handleClickEndWarp}
+            className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
+          >
+            Cancel starting the warp
+          </button>
+        </div>
       </div>
     </div>
   );
