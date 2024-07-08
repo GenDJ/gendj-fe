@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { SignedOut, SignedIn, useUser } from '@clerk/clerk-react';
 import { Link } from 'react-router-dom';
 import useAuthenticatedFetch from '#root/src/hooks/useAuthenticatedFetch';
@@ -25,10 +26,22 @@ export default function IndexPage() {
     entities: userData,
     error: userError,
     isLoading: userIsLoading,
+    refetch,
   } = useAuthenticatedFetch(isLoaded && userId ? `users/${userId}` : null);
-
   const dbUser = userData?.users?.[0];
-  console.log('dbUser1212', userId, dbUser);
+
+  useEffect(() => {
+    if (isLoaded && userId && userData && !dbUser) {
+      const intervalId = setInterval(() => {
+        console.log('refetching1212');
+        refetch();
+      }, 1000);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [isLoaded, userId, userData, dbUser, refetch]);
+
+  console.log('dbUser1212', userId, dbUser, isLoaded);
   return (
     <div className="flex justify-center items-center">
       <SignedIn>

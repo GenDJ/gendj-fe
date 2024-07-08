@@ -146,6 +146,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [calcualatedTimeRemaining, setCalcualatedTimeRemaining] = useState<
     null | number
   >(null);
+  const [isAudioLoopbackActive, setIsAudioLoopbackActive] = useState(false);
 
   const lastWarpedFrameRenderTimeRef = useRef<number | null>(null);
   const croppedCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -157,6 +158,110 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const frameQueueRef = useRef<HTMLImageElement[]>([]);
   const frameTimestampsRef = useRef<number[]>([]);
   const isStreamingRef = useRef(false);
+  const [audioDevices, setAudioDevices] = useState([]);
+  const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState(null);
+  const audioContextRef = useRef(null);
+  const audioStreamRef = useRef(null);
+  const [isAudioLoopbackSupported, setIsAudioLoopbackSupported] =
+    useState(false);
+
+  const checkAudioLoopbackSupport = async () => {
+    try {
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return false;
+      }
+
+      // Check if AudioContext is supported
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) {
+        return false;
+      }
+
+      // Try to get audio permission
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+
+      // Create and close an AudioContext (some browsers only throw errors at this point)
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const destination = audioContext.destination;
+      source.connect(destination);
+
+      // Clean up
+      stream.getTracks().forEach(track => track.stop());
+      await audioContext.close();
+
+      return true;
+    } catch (error) {
+      console.warn('Audio loopback not supported:', error);
+      return false;
+    }
+  };
+  useEffect(() => {
+    const checkSupport = async () => {
+      const isSupported = await checkAudioLoopbackSupport();
+      setIsAudioLoopbackSupported(isSupported);
+    };
+
+    checkSupport();
+  }, []);
+  const toggleAudioLoopback = async () => {
+    if (!isAudioLoopbackActive) {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('getUserMedia is not supported in this browser');
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: selectedAudioDeviceId
+              ? { exact: selectedAudioDeviceId }
+              : undefined,
+          },
+        });
+        audioStreamRef.current = stream;
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) {
+          throw new Error('AudioContext is not supported in this browser');
+        }
+
+        audioContextRef.current = new AudioContext();
+        const source = audioContextRef.current.createMediaStreamSource(stream);
+        const destination = audioContextRef.current.destination;
+        source.connect(destination);
+
+        setIsAudioLoopbackActive(true);
+      } catch (error) {
+        console.error('Error setting up audio loopback:', error);
+        alert(`Unable to start audio loopback: ${error.message}`);
+      }
+    } else {
+      // If active, stop the loopback
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
+        audioStreamRef.current = null;
+      }
+      setIsAudioLoopbackActive(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
 
   const showWarningToast = useCallback(() => {
     if (!currentToastRef.current) {
@@ -457,17 +562,24 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       const videoDevices = devices.filter(
         device => device.kind === 'videoinput',
       );
+      const audioInputDevices = devices.filter(
+        device => device.kind === 'audioinput',
+      );
       setDevices(videoDevices);
+      setAudioDevices(audioInputDevices);
 
       if (videoDevices.length > 0) {
         setSelectedDeviceId(videoDevices[0].deviceId);
-        if (!isRendering) {
-          console.log('settingisrendering outside1212');
-          setIsRendering(true);
-        }
+      }
+      if (audioInputDevices.length > 0) {
+        setSelectedAudioDeviceId(audioInputDevices[0].deviceId);
+      }
+      if (!isRendering) {
+        console.log('settingisrendering outside1212');
+        setIsRendering(true);
       }
     } catch (error) {
-      console.error('Error initializing webcam:', error);
+      console.error('Error initializing devices:', error);
     }
   };
 
@@ -807,6 +919,19 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         </select>
 
         <select
+          onChange={e => setSelectedAudioDeviceId(e.target.value)}
+          className={`w-full p-3 mb-5 border border-[#4a4a4a] rounded-md text-base bg-[#1e1e1e] text-[#e0e0e0]${
+            audioContextRef.current ? '' : ' hidden'
+          }`}
+        >
+          {audioDevices.map(device => (
+            <option key={device.deviceId} value={device.deviceId}>
+              {device.label || `Microphone ${audioDevices.indexOf(device) + 1}`}
+            </option>
+          ))}
+        </select>
+
+        <select
           value={selectedPrompt}
           onChange={e => setSelectedPrompt(e.target.value)}
           className="w-full p-1 sm:p-3 mb-2 border border-[#4a4a4a] rounded-md bg-[#1e1e1e] text-[#e0e0e0] text-sm sm:text-md"
@@ -851,7 +976,6 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           >
             Send Prompt
           </button>
-
           <button
             onClick={() => {
               isStreamingRef.current = !isStreamingRef.current;
@@ -860,20 +984,31 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           >
             {isStreamingRef.current ? 'Stop' : 'Start'} Warping
           </button>
-
           <button
-            onClick={handleClickEndWarp}
-            className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
+            onClick={toggleAudioLoopback}
+            className={`${
+              isAudioLoopbackActive ? 'bg-[#e74c3c]' : 'bg-[#4a90e2]'
+            } text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[${
+              isAudioLoopbackActive ? '#c0392b' : '#3a7bd5'
+            }] hover:-translate-y-0.5 active:translate-y-0 ${
+              isAudioLoopbackSupported ? '' : 'hidden'
+            }`}
           >
-            End Warp
+            {isAudioLoopbackActive ? 'Stop' : 'Start'} Mic Loopback
           </button>
-
           <button
             onClick={handleClickShowAdvanced}
             className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
           >
             {showAdvanced ? 'Hide' : 'Show'} Advanced
           </button>
+          <button
+            onClick={handleClickEndWarp}
+            className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
+          >
+            End Warp
+          </button>
+          ``
         </div>
         {showAdvanced && (
           <div>
