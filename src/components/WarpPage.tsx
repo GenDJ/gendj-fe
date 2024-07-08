@@ -1008,7 +1008,6 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           >
             End Warp
           </button>
-          ``
         </div>
         {showAdvanced && (
           <div>
