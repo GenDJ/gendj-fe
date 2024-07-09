@@ -6,10 +6,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Import the layouts
 import RootLayout from './layouts/root-layout';
-import BillingLayout from '#root/src/layouts/billing-layout.js';
+import AuthenticatedLayout from '#root/src/layouts/authenticated-layout.js';
 
 // Import the components
 import IndexPage from './routes';
+import DJModePage from './routes';
 
 import SignInPage from './routes/sign-in';
 import SignUpPage from './routes/sign-up';
@@ -23,9 +24,11 @@ const router = createBrowserRouter([
       { path: '/sign-in', element: <SignInPage /> },
       { path: '/sign-up', element: <SignUpPage /> },
       {
-        path: '/billing',
-        element: <BillingLayout />,
-        children: [{ path: '', element: <BillingPage /> }],
+        element: <AuthenticatedLayout />,
+        children: [
+          { path: '/billing', element: <BillingPage /> },
+          { path: '/djmode', element: <DJModePage /> },
+        ],
       },
     ],
   },
