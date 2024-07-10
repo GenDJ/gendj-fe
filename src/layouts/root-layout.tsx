@@ -66,7 +66,7 @@ export default function RootLayout() {
                 Open Source
               </a>
               <a
-                href="https://discord.gg/UgTKrdUE"
+                href="https://discord.gg/CQfEpE76s5"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-gray-300 transition-colors text-sm md:text-base"
@@ -102,7 +102,7 @@ export default function RootLayout() {
                 Open Source
               </a>
               <a
-                href="https://discord.gg/UgTKrdUE"
+                href="https://discord.gg/CQfEpE76s5"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-gray-300 transition-colors"

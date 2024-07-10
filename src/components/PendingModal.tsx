@@ -57,7 +57,7 @@ const PendingModal: React.FC<{
               />
             </svg>
             <a
-              href="https://discord.gg/UgTKrdUE"
+              href="https://discord.gg/CQfEpE76s5"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:underline hover:text-blue-300 transition-colors duration-300"
@@ -144,7 +144,7 @@ const PendingModal: React.FC<{
             </span>
           )}
         </p>
-        <div className='text-center my-4'>
+        <div className="text-center my-4">
           <button
             onClick={handleClickEndWarp}
             className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
