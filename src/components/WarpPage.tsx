@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createFullEndpoint } from '#root/utils/apiUtils.js';
+import { createFullEndpoint } from '#root/utils/apiUtils.ts';
 import { ToastContainer, toast, Bounce, Id as ToastId } from 'react-toastify';
 import PendingModal from '#root/src/components/PendingModal';
 import { formatTimeBalance } from '#root/utils/formattingUtils';
+import { IS_WARP_LOCAL } from '#root/utils/constants.ts';
+import useConditionalAuth from '#root/src/hooks/useConditionalAuth';
 import 'image-capture';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -17,11 +19,19 @@ interface Option {
 }
 
 const buildWebsocketUrlFromPodId = (podId: string) => {
-  return `wss://${podId}-8766.proxy.runpod.net`;
+  if (IS_WARP_LOCAL) {
+    return `ws://localhost:8765`;
+  } else {
+    return `wss://${podId}-8766.proxy.runpod.net`;
+  }
 };
 
 const buildPromptEndpointUrlFromPodId = (podId: string) => {
-  return `https://${podId}-5556.proxy.runpod.net/prompt/`;
+  if (IS_WARP_LOCAL) {
+    return `http://localhost:5556/prompt/`;
+  } else {
+    return `https://${podId}-5556.proxy.runpod.net/prompt/`;
+  }
 };
 
 const promptLibraryOptions: Option[] = [
@@ -105,7 +115,6 @@ const promptLibraryOptions: Option[] = [
     label: 'Doggy',
   },
 ];
-import { useAuth } from '@clerk/clerk-react';
 
 const dropFrame =
   (n: number) =>
@@ -122,7 +131,7 @@ const dropFrameStrategies: Record<string, (frameCounter: number) => boolean> = {
 };
 
 const GenDJ = ({ dbUser }: { dbUser: any }) => {
-  const { getToken, isLoaded } = useAuth();
+  const { getToken, isLoaded } = useConditionalAuth();
 
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [devices, setDevices] = useState([]);
@@ -379,6 +388,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     if (warp?.podStatus !== 'RUNNING') return;
 
     const sendHeartbeat = async () => {
+      if (IS_WARP_LOCAL) {
+        return;
+      }
       try {
         const token = await getToken();
         const response = await fetch(
@@ -460,7 +472,21 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       }
     };
 
-    initializeWarp();
+    const initializeLocal = () => {
+      const warp = {
+        id: 'local',
+        podId: 'local',
+        podStatus: 'RUNNING',
+      };
+      setWarp(warp);
+    };
+
+    if (IS_WARP_LOCAL) {
+      initializeLocal();
+    } else {
+      initializeWarp();
+    }
+
     checkWebcamPermissions();
   }, []);
 

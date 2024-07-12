@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import useAuthenticatedFetch from '#root/src/hooks/useAuthenticatedFetch';
 import { useAuth } from '@clerk/clerk-react';
-import { createFullEndpoint } from '#root/utils/apiUtils.js';
+import { createFullEndpoint } from '#root/utils/apiUtils.ts';
 import { useLocation } from 'react-router-dom';
 import { formatTimeBalance } from '#root/utils/formattingUtils';
 

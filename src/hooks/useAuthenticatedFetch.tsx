@@ -5,13 +5,15 @@ import {
   UseQueryOptions,
 } from '@tanstack/react-query';
 import { createFullEndpoint } from '#root/utils/apiUtils';
+import useConditionalAuth from '#root/src/hooks/useConditionalAuth';
+import useConditionalUser from '#root/src/hooks/useConditionalUser';
 
 export default function useAuthenticatedFetch<TData = unknown, TError = Error>(
   endpoint: string | null,
   options?: Omit<UseQueryOptions<TData, TError>, 'queryKey' | 'queryFn'>,
 ) {
-  const { getToken, isLoaded } = useAuth();
-  const { user } = useUser();
+  const { getToken, isLoaded } = useConditionalAuth();
+  const { user } = useConditionalUser();
   const queryClient = useQueryClient();
 
   const fetchEntities = async () => {

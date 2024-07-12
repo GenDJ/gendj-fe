@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { gaInit, gaSendPageview } from '#root/utils/ga4.js';
+import { gaInit, gaSendPageview } from '#root/utils/ga4.ts';
 import { useDetectAdBlock } from 'adblock-detect-react';
 
-export function useAnalytics() {
+export default function useAnalytics() {
   const location = useLocation();
   const adBlockDetected = useDetectAdBlock();
 
