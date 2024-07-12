@@ -49,14 +49,13 @@ export default function RootLayout() {
           </Link>
         </nav>
         <nav className="flex items-center justify-end space-x-4">
-          {IS_WARP_LOCAL && (
-            <Link
-              to="/billing"
-              className="block md:inline-block hover:text-gray-300 transition-colors text-sm md:text-base"
-            >
-              Billing
-            </Link>
-          )}
+          <Link
+            to="/billing"
+            className="block md:inline-block hover:text-gray-300 transition-colors text-sm md:text-base"
+          >
+            Billing
+          </Link>
+
           <a
             href="https://github.com/GenDJ"
             target="_blank"
