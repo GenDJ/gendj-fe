@@ -91,44 +91,46 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider navigate={navigate} publishableKey={PUBLISHABLE_KEY}>
-      <SignedIn>
-        {!IS_WARP_LOCAL && <GaInitComponent />}
+      <div className="min-h-screen bg-stone-900 text-white flex flex-col">
+        <SignedIn>
+          {!IS_WARP_LOCAL && <GaInitComponent />}
 
-        {renderContent()}
-      </SignedIn>
-      <SignedOut>
-        <header
-          className="font-open-sans w-full bg-stone-800 p-2 md:p-4 flex flex-row justify-between items-center"
-          style={{ position: 'fixed' }}
-        >
-          <nav className="flex justify-start">
-            <Link to="/" className="hover:text-gray-300 transition-colors">
-              GenDJ
-            </Link>
-          </nav>
-          <nav className="flex justify-end space-x-4">
-            <a
-              href="https://github.com/GenDJ"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-gray-300 transition-colors"
-            >
-              Open Source
-            </a>
-            <a
-              href="https://discord.gg/CQfEpE76s5"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-gray-300 transition-colors"
-            >
-              Discord
-            </a>
-          </nav>
-        </header>
-        <main className="pt-16">
-          <Outlet />
-        </main>
-      </SignedOut>
+          {renderContent()}
+        </SignedIn>
+        <SignedOut>
+          <header
+            className="font-open-sans w-full bg-stone-800 p-2 md:p-4 flex flex-row justify-between items-center"
+            style={{ position: 'fixed' }}
+          >
+            <nav className="flex justify-start">
+              <Link to="/" className="hover:text-gray-300 transition-colors">
+                GenDJ
+              </Link>
+            </nav>
+            <nav className="flex justify-end space-x-4">
+              <a
+                href="https://github.com/GenDJ"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-gray-300 transition-colors"
+              >
+                Open Source
+              </a>
+              <a
+                href="https://discord.gg/CQfEpE76s5"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-gray-300 transition-colors"
+              >
+                Discord
+              </a>
+            </nav>
+          </header>
+          <main className="pt-16">
+            <Outlet />
+          </main>
+        </SignedOut>
+      </div>
     </ClerkProvider>
   );
 }
