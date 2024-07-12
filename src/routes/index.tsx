@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import useAuthenticatedFetch from '#root/src/hooks/useAuthenticatedFetch';
 import videoFile from '#root/src/assets/gdjhomepage2.mov';
 import WarpPage from '#root/src/components/WarpPage';
+import useConditionalUser from '../hooks/useConditionalUser';
+import { IS_WARP_LOCAL } from '#root/utils/constants.ts';
 const VideoComponent = () => (
   <video
     className="rounded-lg"
@@ -20,18 +22,20 @@ const VideoComponent = () => (
 );
 
 export default function IndexPage() {
-  const { isLoaded, user } = useUser();
+  const { isLoaded, user } = useConditionalUser();
   const userId = user?.id;
   const {
     entities: userData,
     error: userError,
     isLoading: userIsLoading,
     refetch,
-  } = useAuthenticatedFetch(isLoaded && userId ? `users/${userId}` : null);
+  } = useAuthenticatedFetch(
+    isLoaded && userId && !IS_WARP_LOCAL ? `users/${userId}` : null,
+  );
   const dbUser = userData?.users?.[0];
 
   useEffect(() => {
-    if (isLoaded && userId && userData && !dbUser) {
+    if (isLoaded && userId && userData && !dbUser && !IS_WARP_LOCAL) {
       const intervalId = setInterval(() => {
         console.log('refetching1212');
         refetch();
@@ -42,6 +46,16 @@ export default function IndexPage() {
   }, [isLoaded, userId, userData, dbUser, refetch]);
 
   console.log('dbUser1212', userId, dbUser, isLoaded);
+
+  if (IS_WARP_LOCAL) {
+    return (
+      <div className="flex justify-center items-center">
+        <div className="flex flex-col justify-center">
+          <WarpPage dbUser={dbUser} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex justify-center items-center">
       <SignedIn>

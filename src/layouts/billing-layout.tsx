@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
 
-export default function BillinLayout() {
+export default function BillingLayout() {
   const { userId, isLoaded } = useAuth();
   const navigate = useNavigate();
 

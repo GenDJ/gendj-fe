@@ -6,8 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Import the layouts
 import RootLayout from './layouts/root-layout';
-import BillingLayout from '#root/src/layouts/billing-layout.js';
-
+import BillingLayout from '#root/src/layouts/billing-layout';
 // Import the components
 import IndexPage from './routes';
 
