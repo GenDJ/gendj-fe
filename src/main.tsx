@@ -9,6 +9,7 @@ import RootLayout from './layouts/root-layout';
 import BillingLayout from '#root/src/layouts/billing-layout';
 // Import the components
 import IndexPage from './routes';
+import MidiStuffPage from './components/MidiStuff';
 
 import SignInPage from './routes/sign-in';
 import SignUpPage from './routes/sign-up';
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
     element: <RootLayout />,
     children: [
       { path: '/', element: <IndexPage /> },
+      { path: '/midistuff', element: <MidiStuffPage /> },
       { path: '/sign-in', element: <SignInPage /> },
       { path: '/sign-up', element: <SignUpPage /> },
       {
