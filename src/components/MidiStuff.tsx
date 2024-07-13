@@ -1,67 +1,118 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { WebMidi, Input, MessageEvent } from 'webmidi';
 
 export default function MidiStuffPage() {
   const [sliderValue, setSliderValue] = useState<number>(0);
-  const [midiAccess, setMidiAccess] = useState<WebMidi.MIDIAccess | null>(null);
-  const [isMapping, setIsMapping] = useState<boolean>(false);
-  const [mappedCC, setMappedCC] = useState<number | null>(null);
+  const [midiEnabled, setMidiEnabled] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (navigator.requestMIDIAccess) {
-      navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
-    } else {
-      console.log('Web MIDI API not supported in this browser');
+  const [isMapping, setIsMapping] = useState<boolean>(false);
+  const isMappingRef = useRef<boolean>(false);
+  const mappedControlRef = useRef<{
+    type: string;
+    channel: number;
+    control: number;
+  } | null>(null);
+
+  const mappingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleAllMIDIMessages = useCallback((event: MessageEvent) => {
+    // if (isWarpingRef.current) return; // Early return if warping
+
+    const [status, data1, data2] = event.message.data;
+    const messageType = status >> 4;
+    const channel = (status & 0xf) + 1;
+
+    console.log(
+      `MIDI Message - Type: ${messageType.toString(
+        16,
+      )}, Channel: ${channel}, Data1: ${data1}, Data2: ${data2}`,
+    );
+
+    // Ignore CC messages above 31
+    if (messageType === 0xb && data1 > 31) {
+      return;
+    }
+
+    if (isMappingRef.current) {
+      if (messageType === 0xb) {
+        // Control Change
+        // We only want to map CC#0
+        console.log('Control Changezop1212');
+        mappedControlRef.current = { type: 'cc', channel, control: data1 };
+        setIsMappingBoth(false);
+        console.log(`Mapped to CC: ${data1} on channel ${channel}`);
+      } else if (messageType === 0x9) {
+        // Note On
+        console.log('note on zop1212');
+        mappedControlRef.current = { type: 'note', channel, control: data1 };
+        setIsMappingBoth(false);
+
+        console.log(`Mapped to Note: ${data1} on channel ${channel}`);
+      }
+    } else if (mappedControlRef.current) {
+      const mappedControl = mappedControlRef.current;
+      if (
+        mappedControl.type === 'cc' &&
+        messageType === 0xb &&
+        channel === mappedControl.channel &&
+        data1 === mappedControl.control
+      ) {
+        setSliderValue(data2);
+      } else if (
+        mappedControl.type === 'note' &&
+        messageType === 0x9 &&
+        channel === mappedControl.channel &&
+        data1 === mappedControl.control
+      ) {
+        setSliderValue(data2);
+      }
     }
   }, []);
 
+  const setupMIDIListeners = useCallback(() => {
+    WebMidi.inputs.forEach((input: Input) => {
+      input.addListener('midimessage', handleAllMIDIMessages);
+    }); //zop
+  }, []);
+
   useEffect(() => {
-    if (midiAccess) {
-      midiAccess.inputs.forEach(input => {
-        input.onmidimessage = getMIDIMessage;
-      });
-    }
-  }, [midiAccess, isMapping, mappedCC]);
-
-  function onMIDISuccess(access: WebMidi.MIDIAccess) {
-    console.log('MIDI Access Success');
-    setMidiAccess(access);
-
-    access.inputs.forEach(input => {
-      console.log(`Input port: ${input.name}`);
-    });
-
-    access.onstatechange = event => {
-      console.log(
-        `Port: ${event.port.type} - ${event.port.name} - ${event.port.state}`,
-      );
+    const enableWebMidi = async () => {
+      try {
+        await WebMidi.enable();
+        console.log('WebMidi enabled!');
+        setMidiEnabled(true);
+      } catch (err) {
+        console.error('WebMidi could not be enabled.', err);
+      }
     };
-  }
 
-  function onMIDIFailure(error: any) {
-    console.log('Could not access your MIDI devices.', error);
-  }
+    enableWebMidi();
 
-  function getMIDIMessage(message: WebMidi.MIDIMessageEvent) {
-    console.log('MIDI Message:', message.data);
+    return () => {
+      WebMidi.disable();
+    };
+  }, []);
 
-    const [status, data1, data2] = message.data;
-
-    if (isMapping && status === 176) {
-      // 176 is the status for Control Change on channel 1
-      setMappedCC(data1);
-      setIsMapping(false);
-      console.log(`Mapped to CC: ${data1}`);
+  useEffect(() => {
+    if (midiEnabled) {
+      setupMIDIListeners();
     }
-
-    if (!isMapping && status === 176 && data1 === mappedCC) {
-      setSliderValue(data2);
-    }
-  }
-
+    return () => {
+      WebMidi.inputs.forEach((input: Input) => {
+        input.removeListener('midimessage', handleAllMIDIMessages);
+      });
+    };
+  }, [midiEnabled, setupMIDIListeners]);
+  const setIsMappingBoth = useCallback((value: boolean) => {
+    setIsMapping(value);
+    isMappingRef.current = value;
+  }, []);
   function handleMapButtonClick() {
-    setIsMapping(true);
-    setMappedCC(null);
-    console.log('Move a fader on your MIDI controller to map it.');
+    setIsMappingBoth(true);
+    mappedControlRef.current = null;
+    console.log(
+      'Move a fader or press a button on your MIDI controller to map it.',
+    );
   }
 
   return (
@@ -79,22 +130,37 @@ export default function MidiStuffPage() {
           />
           <button
             onClick={handleMapButtonClick}
-            className="px-4 py-2 bg-blue-500 text-white rounded"
-            disabled={!midiAccess}
+            className={`w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 font-bold
+    flex items-center justify-center
+    relative overflow-hidden
+    ${!midiEnabled && 'opacity-50 cursor-not-allowed'}
+    ${isMapping && 'text-white'}
+  `}
+            disabled={!midiEnabled}
           >
-            {isMapping ? 'Mapping...' : 'Map to MIDI'}
+            <span className="z-10">M</span>
+            <div
+              className={`
+      absolute inset-0 bg-green-500 transition-transform duration-300 ease-out
+      ${isMapping ? 'scale-100' : 'scale-0'}
+    `}
+            ></div>
           </button>
         </div>
         <p>Slider Value: {sliderValue}</p>
-        <p>Mapped CC: {mappedCC !== null ? mappedCC : 'Not mapped'}</p>
         <p>
-          Mapping Status: {isMapping ? 'Mapping in progress' : 'Not mapping'}
+          Mapped Control:{' '}
+          {mappedControlRef.current
+            ? `${mappedControlRef.current.type.toUpperCase()} ${
+                mappedControlRef.current.control
+              } on channel ${mappedControlRef.current.channel}`
+            : 'Not mapped'}
         </p>
-        {!navigator.requestMIDIAccess && (
-          <p className="text-red-500">
-            Web MIDI API not supported in this browser
-          </p>
-        )}
+        <p>
+          Mapping Status:{' '}
+          {isMappingRef.current ? 'Mapping in progress' : 'Not mapping'}
+        </p>
+        <p>MIDI Status: {midiEnabled ? 'Enabled' : 'Disabled'}</p>
       </div>
     </div>
   );
