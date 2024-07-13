@@ -16,8 +16,6 @@ export default function MidiStuffPage() {
   const mappingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleAllMIDIMessages = useCallback((event: MessageEvent) => {
-    // if (isWarpingRef.current) return; // Early return if warping
-
     const [status, data1, data2] = event.message.data;
     const messageType = status >> 4;
     const channel = (status & 0xf) + 1;
@@ -36,7 +34,6 @@ export default function MidiStuffPage() {
     if (isMappingRef.current) {
       if (messageType === 0xb) {
         // Control Change
-        // We only want to map CC#0
         console.log('Control Changezop1212');
         mappedControlRef.current = { type: 'cc', channel, control: data1 };
         setIsMappingBoth(false);
