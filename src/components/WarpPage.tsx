@@ -26,11 +26,30 @@ const buildWebsocketUrlFromPodId = (podId: string) => {
   }
 };
 
-const buildPromptEndpointUrlFromPodId = (podId: string) => {
+const buildPromptEndpointUrlFromPodId = (
+  podId: string,
+  promptIndex: number = 1,
+) => {
   if (IS_WARP_LOCAL) {
-    return `http://localhost:5556/prompt/`;
+    if (promptIndex === 1) {
+      return `http://localhost:5556/prompt/`;
+    } else {
+      return `http://localhost:5556/secondprompt/`;
+    }
   } else {
-    return `https://${podId}-5556.proxy.runpod.net/prompt/`;
+    if (promptIndex === 1) {
+      return `https://${podId}-5556.proxy.runpod.net/prompt/`;
+    } else {
+      return `https://${podId}-5556.proxy.runpod.net/secondprompt/`;
+    }
+  }
+};
+
+const buildBlendEndpointUrlFromPodId = (podId: string) => {
+  if (IS_WARP_LOCAL) {
+    return `http://localhost:5556/blend/`;
+  } else {
+    return `https://${podId}-5556.proxy.runpod.net/blend/`;
   }
 };
 
@@ -138,7 +157,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [prompt, setPrompt] = useState(
     'illustration of a dj sunglasses disco colors vibrant digital illustration HDR talking',
   );
+  const [secondPrompt, setSecondPrompt] = useState('A psychedellic landscape.');
   const [selectedPrompt, setSelectedPrompt] = useState('');
+  const [blendValue, setBlendValue] = useState(0); // ... other
+
   const [postText, setPostText] = useState('');
   const [isRendering, setIsRendering] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -171,6 +193,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState(null);
   const audioContextRef = useRef(null);
   const audioStreamRef = useRef(null);
+
+  const lastBlendSendTimeRef = useRef(0);
+  const blendTimeoutIdRef = useRef(null);
+
   const [isAudioLoopbackSupported, setIsAudioLoopbackSupported] =
     useState(false);
 
@@ -622,37 +648,93 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     return frameTimestamps.length;
   }
 
-  const sendPrompt = useCallback(() => {
-    if (!warp?.podId) {
-      console.error('Prompt endpoint URL not available');
-      return;
-    }
+  const sendPrompt = useCallback(
+    (promptIndex = 1) => {
+      if (!warp?.podId) {
+        console.error('Prompt endpoint URL not available');
+        return;
+      }
 
-    const promptEndpointUrl = buildPromptEndpointUrlFromPodId(warp.podId);
-    const encodedPrompt = encodeURIComponent(`${prompt} ${postText}`);
-    const endpoint = `${promptEndpointUrl}${encodedPrompt}`;
+      const promptEndpointUrl = buildPromptEndpointUrlFromPodId(
+        warp.podId,
+        promptIndex,
+      );
+      const encodedPrompt =
+        promptIndex === 1
+          ? encodeURIComponent(`${prompt} ${postText}`)
+          : encodeURIComponent(`${secondPrompt} ${postText}`);
+      const endpoint = `${promptEndpointUrl}${encodedPrompt}`;
 
-    fetch(endpoint, {
-      method: 'POST',
-    })
-      .then(response => response.text())
-      .then(data => {
-        console.log('promptData', data);
-        try {
-          if (data) {
-            const parsedData = JSON.parse(data);
-            if (parsedData?.safety === 'unsafe') {
-              showExplicitOrCopyrightedWarning();
-            }
-          }
-        } catch (error) {
-          console.error('prompt parse error:', error);
-        }
+      fetch(endpoint, {
+        method: 'POST',
       })
-      .catch(error => {
-        console.error('Error:', error);
-      });
-  }, [warp, prompt, postText]);
+        .then(response => response.text())
+        .then(data => {
+          console.log('promptData', data);
+          try {
+            if (data) {
+              const parsedData = JSON.parse(data);
+              if (parsedData?.safety === 'unsafe') {
+                showExplicitOrCopyrightedWarning();
+              }
+            }
+          } catch (error) {
+            console.error('prompt parse error:', error);
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+        });
+    },
+    [warp, prompt, postText, secondPrompt],
+  );
+
+  const sendBlendRequest = useCallback(
+    value => {
+      if (!warp?.podId) {
+        return;
+      }
+      const promptEndpointUrl = buildBlendEndpointUrlFromPodId(warp.podId);
+      const endpoint = `${promptEndpointUrl}${value}`;
+
+      fetch(endpoint, {
+        method: 'POST',
+      })
+        .then(response => response.text())
+        .then(data => {
+          console.log('Blend response:', data);
+        })
+        .catch(error => {
+          console.error('Error sending blend value:', error);
+        });
+    },
+    [warp],
+  );
+
+  const handleSliderChange = useCallback(
+    value => {
+      const now = Date.now();
+      if (now - lastBlendSendTimeRef.current >= 24) {
+        sendBlendRequest(value);
+        lastBlendSendTimeRef.current = now;
+      } else {
+        clearTimeout(blendTimeoutIdRef.current);
+        blendTimeoutIdRef.current = setTimeout(() => {
+          sendBlendRequest(value);
+          lastBlendSendTimeRef.current = Date.now();
+        }, 24);
+      }
+    },
+    [sendBlendRequest],
+  );
+
+  useEffect(() => {
+    handleSliderChange(blendValue);
+
+    return () => {
+      clearTimeout(blendTimeoutIdRef.current);
+    };
+  }, [blendValue, handleSliderChange]);
 
   const handleClickEndWarp = useCallback(() => {
     if (!warp?.id) {
@@ -997,7 +1079,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         />
         <div className="flex flex-wrap justify-center gap-2 my-3">
           <button
-            onClick={sendPrompt}
+            onClick={() => sendPrompt()}
             className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0"
           >
             Send Prompt
@@ -1059,6 +1141,43 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
               <option value="4">4</option>
               <option value="5">5</option>
             </select>
+            <textarea
+              value={secondPrompt}
+              onChange={e => setSecondPrompt(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendPrompt(2);
+                }
+              }}
+              placeholder="Enter second prompt..."
+              className="w-full p-1 sm:p-3 mb-2 border border-[#4a4a4a] rounded-md bg-[#1e1e1e] text-[#e0e0e0] resize-y min-h-[100px] text-sm sm:text-md"
+            />
+            <button
+              onClick={() => sendPrompt(2)}
+              className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0"
+            >
+              Send Second Prompt
+            </button>
+
+            <div className="w-full mb-4">
+              <label
+                htmlFor="blendSlider"
+                className="block text-sm font-medium text-[#e0e0e0] mb-2"
+              >
+                Blend: <span>{blendValue.toFixed(2)}</span>
+              </label>
+              <input
+                type="range"
+                id="blendSlider"
+                min={0}
+                max={1}
+                step={0.01}
+                value={blendValue}
+                onChange={e => setBlendValue(parseFloat(e.target.value))}
+                className="w-full h-2 bg-[#4a4a4a] rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
           </div>
         )}
 
