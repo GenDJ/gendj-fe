@@ -79,6 +79,7 @@ export default {
         'opacity-50',
         'cursor-not-allowed',
         'text-white',
+        'bg-yellow-500',
       ],
     },
   },

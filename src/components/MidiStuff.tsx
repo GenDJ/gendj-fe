@@ -1,76 +1,428 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WebMidi, Input, MessageEvent } from 'webmidi';
 
-export default function MidiStuffPage() {
-  const [sliderValue, setSliderValue] = useState<number>(0);
+interface MidiStuffPageProps {
+  sendPrompt: (promptIndex: number) => void;
+  prompt: string;
+  setPrompt: React.Dispatch<React.SetStateAction<string>>;
+  secondPrompt: string;
+  setSecondPrompt: React.Dispatch<React.SetStateAction<string>>;
+  blendValue: number;
+  setBlendValue: React.Dispatch<React.SetStateAction<number>>;
+}
+enum MappableActionEnum {
+  Fader = 'fader',
+  SetFirstPromptLoading = 'set_first_prompt_loading',
+  SetSecondPromptLoading = 'set_second_prompt_loading',
+  PromptSelectUp = 'prompt_select_up',
+  PromptSelectDown = 'prompt_select_down',
+  PromptSelectConfirm = 'prompt_select_confirm',
+  PromptSubmit = 'prompt_submit',
+  SecondPromptSubmit = 'second_prompt_submit',
+}
+
+type MappableAction = typeof MappableActionEnum;
+
+const mappableActionTitles: Record<MappableActionEnum, string> = {
+  [MappableActionEnum.Fader]: 'Fader',
+  [MappableActionEnum.SetFirstPromptLoading]: 'Set First Prompt Loading',
+  [MappableActionEnum.SetSecondPromptLoading]: 'Set Second Prompt Loading',
+  [MappableActionEnum.PromptSelectUp]: 'Prompt Select Up',
+  [MappableActionEnum.PromptSelectDown]: 'Prompt Select Down',
+  [MappableActionEnum.PromptSelectConfirm]: 'Prompt Select Confirm',
+  [MappableActionEnum.PromptSubmit]: 'Prompt Submit',
+  [MappableActionEnum.SecondPromptSubmit]: 'Second Prompt Submit',
+};
+
+function findMappedControl(
+  action: MappableActionEnum,
+  mappedControlRef: React.MutableRefObject<Record<string, MappableActionEnum>>,
+): string | undefined {
+  if (!mappedControlRef?.current) {
+    return undefined;
+  }
+  const entry = Object.entries(mappedControlRef.current).find(
+    ([_, value]) => value === action,
+  );
+  return entry ? entry[0] : undefined;
+}
+
+interface MidiMapModalProps {
+  mappingTarget: MappableActionEnum | null;
+  mappedControlRef: React.MutableRefObject<Record<string, MappableActionEnum>>;
+  setMappingTarget: React.Dispatch<
+    React.SetStateAction<MappableActionEnum | null>
+  >;
+  mappingTargetRef: React.MutableRefObject<MappableActionEnum | null>;
+  handleMapButtonClick: (action: MappableActionEnum) => void;
+  setIsMappingBoth: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsMapMidiModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  midiEnabled: boolean;
+  isMapping: boolean;
+  isMappingRef: React.MutableRefObject<boolean>;
+}
+
+interface PromptLibraryModalProps {
+  promptLibrary: string[];
+  setPromptLibrary: React.Dispatch<React.SetStateAction<string[]>>;
+  setIsPromptLibraryModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+const MidiMapModal: React.FC<MidiMapModalProps> = ({
+  mappingTarget,
+  mappedControlRef,
+  setMappingTarget,
+  mappingTargetRef,
+  handleMapButtonClick,
+  setIsMappingBoth,
+  setIsMapMidiModalOpen,
+  midiEnabled,
+  isMapping,
+  isMappingRef,
+  warp,
+}) => {
+  const logMappedControls = () => {
+    console.log('Mapped Controls:', mappedControlRef?.current);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex justify-center items-center p-4">
+      <div className="bg-gray-800 rounded-xl max-w-md w-full shadow-2xl">
+        <div className="p-6 space-y-6">
+          <h1 className="text-2xl font-bold text-gray-100">MIDI Mapping</h1>
+          {mappingTarget ? (
+            <p className="text-gray-300">
+              Move a fader or press a button on your MIDI controller to map it
+              to{' '}
+              <span className="font-bold text-blue-400">
+                {mappableActionTitles[mappingTarget]}
+              </span>
+              .
+            </p>
+          ) : (
+            <p className="text-gray-300">Select an action to map:</p>
+          )}
+          <div className="space-y-4">
+            {Object.entries(mappableActionTitles).map(
+              ([actionKey, actionTitle]) => {
+                const action = actionKey as MappableActionEnum;
+                const mappedControl = findMappedControl(
+                  action,
+                  mappedControlRef,
+                );
+                return (
+                  <div
+                    key={action}
+                    className="grid grid-cols-[1fr,auto,auto] gap-4 items-center"
+                  >
+                    <span className="text-gray-300">{actionTitle}</span>
+                    <span className="text-gray-400 text-sm">
+                      {mappedControl}
+                    </span>
+                    <button
+                      onClick={() => handleMapButtonClick(action)}
+                      className={`text-xs w-10 h-10 rounded-lg border-2 border-blue-500 text-blue-400 font-bold
+                      flex items-center justify-center relative overflow-hidden
+                      ${!midiEnabled && 'opacity-50 cursor-not-allowed'}
+                      ${
+                        isMapping && mappingTarget === action
+                          ? 'bg-blue-500 text-gray-900'
+                          : 'hover:bg-blue-600 hover:text-gray-900'
+                      }
+                      transition-all duration-300`}
+                      disabled={!midiEnabled}
+                    >
+                      Map MIDI
+                    </button>
+                  </div>
+                );
+              },
+            )}
+          </div>
+        </div>
+        <div className="p-6 bg-gray-700/50 rounded-b-xl space-y-4">
+          <button
+            onClick={() => {
+              setIsMappingBoth(false);
+              setIsMapMidiModalOpen(false);
+            }}
+            className="w-full px-4 py-2 bg-red-600 text-gray-100 rounded-md
+              hover:bg-red-700 transition-colors duration-300"
+          >
+            Close
+          </button>
+          {/* <button
+            onClick={logMappedControls}
+            className="w-full px-4 py-2 bg-gray-600 text-gray-300 rounded-md
+              hover:bg-gray-700 transition-colors duration-300"
+          >
+            Log Mapped Controls
+          </button> */}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
+  promptLibrary,
+  setPromptLibrary,
+  setIsPromptLibraryModalOpen,
+}) => {
+  const [newPrompt, setNewPrompt] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('promptLibrary', JSON.stringify(promptLibrary));
+  }, [promptLibrary]);
+
+  const handleDeletePrompt = (index: number) => {
+    const updatedLibrary = promptLibrary.filter((_, i) => i !== index);
+    setPromptLibrary(updatedLibrary);
+  };
+
+  const handleAddPrompt = () => {
+    if (newPrompt.trim()) {
+      setPromptLibrary([...promptLibrary, newPrompt.trim()]);
+      setNewPrompt('');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex justify-center items-center p-4">
+      <div className="bg-gray-800 rounded-xl max-w-md w-full shadow-2xl">
+        <div className="p-6 space-y-6">
+          <h1 className="text-2xl font-bold text-gray-100">Prompt Library</h1>
+          <div className="space-y-4">
+            {promptLibrary.map((prompt, index) => (
+              <div key={index} className="flex justify-between items-center">
+                <p className="text-gray-300">{prompt}</p>
+                <button
+                  onClick={() => handleDeletePrompt(index)}
+                  className="text-red-400 hover:text-red-500"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <textarea
+              value={newPrompt}
+              onChange={e => setNewPrompt(e.target.value)}
+              className="w-full p-2 bg-gray-700 text-gray-100 rounded-md"
+              placeholder="Enter a new prompt"
+              rows={3}
+            />
+            <button
+              onClick={handleAddPrompt}
+              className="w-full px-4 py-2 bg-blue-600 text-gray-100 rounded-md
+                hover:bg-blue-700 transition-colors duration-300"
+            >
+              Save to Library
+            </button>
+          </div>
+        </div>
+        <div className="p-6 bg-gray-700/50 rounded-b-xl">
+          <button
+            onClick={() => setIsPromptLibraryModalOpen(false)}
+            className="w-full px-4 py-2 bg-red-600 text-gray-100 rounded-md
+              hover:bg-red-700 transition-colors duration-300"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
+  sendPrompt,
+  prompt,
+  setPrompt,
+  secondPrompt,
+  setSecondPrompt,
+  blendValue,
+  setBlendValue,
+  warp,
+}) => {
   const [midiEnabled, setMidiEnabled] = useState<boolean>(false);
-
   const [isMapping, setIsMapping] = useState<boolean>(false);
+  const [mappingTarget, setMappingTarget] = useState<string | null>(null);
+  const [promptLibrary, setPromptLibrary] = useState<string[]>([
+    'Prompt 1',
+    'Prompt 2',
+    'Prompt 3',
+    // Add more prompts as needed
+  ]);
+  const [selectedPromptIndex, setSelectedPromptIndex] = useState<number>(0);
+
+  const promptLoadingMappableActionRef = useRef<MappableActionEnum | null>(
+    null,
+  );
+  const [promptLoadingMappableAction, setPromptLoadingMappableAction] =
+    useState<null | MappableActionEnum>(null);
+  const [loadingSecondPrompt, setLoadingSecondPrompt] =
+    useState<boolean>(false);
+
+  const [isMapMidiModalOpen, setIsMapMidiModalOpen] = useState<boolean>(false);
+  const [isPromptLibraryModalOpen, setIsPromptLibraryModalOpen] =
+    useState<boolean>(false);
+
   const isMappingRef = useRef<boolean>(false);
-  const mappedControlRef = useRef<{
-    type: string;
-    channel: number;
-    control: number;
-  } | null>(null);
+  const mappingTargetRef = useRef<MappableAction | null>(null);
+  const mappedControlsRef = useRef<Record<string, MappableAction>>({});
 
-  const mappingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleAllMIDIMessages = useCallback((event: MessageEvent) => {
-    const [status, data1, data2] = event.message.data;
-    const messageType = status >> 4;
-    const channel = (status & 0xf) + 1;
-
-    console.log(
-      `MIDI Message - Type: ${messageType.toString(
-        16,
-      )}, Channel: ${channel}, Data1: ${data1}, Data2: ${data2}`,
-    );
-
-    // Ignore CC messages above 31
-    if (messageType === 0xb && data1 > 31) {
-      return;
+  useEffect(() => {
+    // Load mapped controls from local storage
+    // console.log('ls1212', localStorage.getItem('mappedControls'));
+    if (localStorage.getItem('mappedControls')) {
+      mappedControlsRef.current = JSON.parse(
+        localStorage.getItem('mappedControls'),
+      );
     }
 
-    if (isMappingRef.current) {
-      if (messageType === 0xb) {
-        // Control Change
-        console.log('Control Changezop1212');
-        mappedControlRef.current = { type: 'cc', channel, control: data1 };
-        setIsMappingBoth(false);
-        console.log(`Mapped to CC: ${data1} on channel ${channel}`);
-      } else if (messageType === 0x9) {
-        // Note On
-        console.log('note on zop1212');
-        mappedControlRef.current = { type: 'note', channel, control: data1 };
-        setIsMappingBoth(false);
+    if (localStorage.getItem('promptLibrary')) {
+      setPromptLibrary(JSON.parse(localStorage.getItem('promptLibrary')));
+    }
+  }, []);
 
-        console.log(`Mapped to Note: ${data1} on channel ${channel}`);
-      }
-    } else if (mappedControlRef.current) {
-      const mappedControl = mappedControlRef.current;
+  useEffect(() => {
+    promptLoadingMappableActionRef.current = promptLoadingMappableAction;
+  }, [promptLoadingMappableAction]);
+
+  const handleAllMIDIMessages = useCallback(
+    (event: MessageEvent) => {
+      const [status, data1, data2] = event.message.data;
+      const messageType = status >> 4;
+      const channel = (status & 0xf) + 1;
+
+      // console.log(
+      //   `MIDI Message - Type: ${messageType.toString(
+      //     16,
+      //   )}, Channel: ${channel}, Data1: ${data1}, Data2: ${data2}`,
+      // );
+
       if (
-        mappedControl.type === 'cc' &&
-        messageType === 0xb &&
-        channel === mappedControl.channel &&
-        data1 === mappedControl.control
+        (messageType === 0xb && data1 > 31) ||
+        (messageType === 0x9 && data2 === 0)
       ) {
-        setSliderValue(data2);
-      } else if (
-        mappedControl.type === 'note' &&
-        messageType === 0x9 &&
-        channel === mappedControl.channel &&
-        data1 === mappedControl.control
-      ) {
-        setSliderValue(data2);
+        return;
       }
-    }
-  }, []);
 
-  const setupMIDIListeners = useCallback(() => {
-    WebMidi.inputs.forEach((input: Input) => {
-      input.addListener('midimessage', handleAllMIDIMessages);
-    }); //zop
-  }, []);
+      if (isMappingRef.current && mappingTargetRef?.current) {
+        if (messageType === 0xb) {
+          mappedControlsRef.current[`cc${channel}${data1}`] =
+            mappingTargetRef.current;
+          localStorage.setItem(
+            'mappedControls',
+            JSON.stringify(mappedControlsRef.current),
+          );
+
+          setIsMapping(false);
+          setMappingTarget(null);
+          console.log(
+            `Mapped ${mappingTargetRef.current} to CC: ${data1} on channel ${channel}`,
+          );
+          mappingTargetRef.current = null;
+        } else if (messageType === 0x9) {
+          mappedControlsRef.current[`note${channel}${data1}`] =
+            mappingTargetRef.current;
+          localStorage.setItem(
+            'mappedControls',
+            JSON.stringify(mappedControlsRef.current),
+          );
+
+          setIsMapping(false);
+          setMappingTarget(null);
+          console.log(
+            `Mapped ${mappingTargetRef.current} to Note: ${data1} on channel ${channel}`,
+          );
+          mappingTargetRef.current = null;
+        }
+      } else {
+        if (messageType === 0xb || messageType === 0x9) {
+          const mappedControl: MappableAction =
+            mappedControlsRef?.current?.[
+              `${messageType === 0xb ? 'cc' : 'note'}${channel}${data1}`
+            ];
+          if (mappedControl) {
+            handleMappedControl(mappedControl, data2);
+          }
+        }
+      }
+    },
+    [
+      mappingTarget,
+      warp?.podId,
+      promptLoadingMappableAction,
+      selectedPromptIndex,
+    ],
+  );
+
+  const handleMappedControl = (target: string, value: number) => {
+    switch (target) {
+      case 'fader':
+        setBlendValue(Number((value / 127).toFixed(2)));
+        break;
+      case 'set_first_prompt_loading':
+        if (
+          promptLoadingMappableActionRef?.current ===
+          MappableActionEnum.SetFirstPromptLoading
+        ) {
+          setPromptLoadingMappableAction(null);
+        } else {
+          setPromptLoadingMappableAction(
+            MappableActionEnum.SetFirstPromptLoading,
+          );
+        }
+
+        break;
+      case 'set_second_prompt_loading':
+        if (
+          promptLoadingMappableActionRef?.current ===
+          MappableActionEnum.SetSecondPromptLoading
+        ) {
+          setPromptLoadingMappableAction(null);
+        } else {
+          setPromptLoadingMappableAction(
+            MappableActionEnum.SetSecondPromptLoading,
+          );
+        }        
+        break;
+      case 'prompt_select_up':
+        setSelectedPromptIndex(prev => (prev > 0 ? prev - 1 : prev));
+        break;
+      case 'prompt_select_down':
+        setSelectedPromptIndex(prev =>
+          prev < promptLibrary.length - 1 ? prev + 1 : prev,
+        );
+        break;
+      case 'prompt_select_confirm':
+        if (promptLoadingMappableActionRef?.current) {
+          if (
+            promptLoadingMappableActionRef?.current ===
+            MappableActionEnum.SetFirstPromptLoading
+          ) {
+            setPrompt(promptLibrary[selectedPromptIndex]);
+            setPromptLoadingMappableAction(null);
+          } else if (
+            promptLoadingMappableActionRef?.current ===
+            MappableActionEnum.SetSecondPromptLoading
+          ) {
+            setSecondPrompt(promptLibrary[selectedPromptIndex]);
+            setPromptLoadingMappableAction(null);
+          }
+        }
+        break;
+      case 'prompt_submit':
+        sendPrompt(1);
+        break;
+      case 'second_prompt_submit':
+        sendPrompt(2);
+        break;
+    }
+  };
 
   useEffect(() => {
     const enableWebMidi = async () => {
@@ -92,73 +444,227 @@ export default function MidiStuffPage() {
 
   useEffect(() => {
     if (midiEnabled) {
-      setupMIDIListeners();
+      WebMidi.inputs.forEach((input: Input) => {
+        input.addListener('midimessage', handleAllMIDIMessages);
+      });
     }
     return () => {
       WebMidi.inputs.forEach((input: Input) => {
         input.removeListener('midimessage', handleAllMIDIMessages);
       });
     };
-  }, [midiEnabled, setupMIDIListeners]);
+  }, [midiEnabled, warp?.podId, selectedPromptIndex]);
   const setIsMappingBoth = useCallback((value: boolean) => {
     setIsMapping(value);
     isMappingRef.current = value;
   }, []);
-  function handleMapButtonClick() {
-    setIsMappingBoth(true);
-    mappedControlRef.current = null;
+
+  const handleMapButtonClick = (target: string) => {
+    setIsMapping(true);
+    isMappingRef.current = true;
+    setMappingTarget(target);
+    mappingTargetRef.current = target;
     console.log(
-      'Move a fader or press a button on your MIDI controller to map it.',
+      `Move a fader or press a button on your MIDI controller to map it to ${target}.`,
     );
-  }
+  };
+
+  const handlePromptSelect = (direction: 'up' | 'down' | 'select') => {
+    switch (direction) {
+      case 'up':
+        setSelectedPromptIndex(prev => (prev > 0 ? prev - 1 : prev));
+        break;
+      case 'down':
+        setSelectedPromptIndex(prev =>
+          prev < promptLibrary.length - 1 ? prev + 1 : prev,
+        );
+        break;
+      case 'select':
+        if (promptLoadingMappableActionRef?.current) {
+          if (
+            promptLoadingMappableActionRef?.current ===
+            MappableActionEnum.SetFirstPromptLoading
+          ) {
+            setPrompt(promptLibrary[selectedPromptIndex]);
+            setPromptLoadingMappableAction(null);
+          } else if (
+            promptLoadingMappableActionRef?.current ===
+            MappableActionEnum.SetSecondPromptLoading
+          ) {
+            console.log('set second');
+            setSecondPrompt(promptLibrary[selectedPromptIndex]);
+            setPromptLoadingMappableAction(null);
+          }
+        }
+        break;
+    }
+  };
+
+  const handleOpenMidiMapModal = () => {
+    setIsMapMidiModalOpen(true);
+  };
+
+  const handlePromptLibraryModal = () => {
+    setIsPromptLibraryModalOpen(true);
+  };
 
   return (
-    <div className="flex justify-center items-center">
-      <div className="flex flex-col justify-center">
-        <h1>MIDI Stuff</h1>
-        <div className="flex items-center space-x-4">
+    <div className="flex flex-col items-center space-y-4 my-8">
+      {isMapMidiModalOpen && (
+        <MidiMapModal
+          mappingTarget={mappingTarget}
+          setMappingTarget={setMappingTarget}
+          handleMapButtonClick={handleMapButtonClick}
+          setIsMappingBoth={setIsMappingBoth}
+          setIsMapMidiModalOpen={setIsMapMidiModalOpen}
+          midiEnabled={midiEnabled}
+          isMapping={isMapping}
+          isMappingRef={isMappingRef}
+          mappingTargetRef={mappingTargetRef}
+          mappedControlRef={mappedControlsRef}
+        />
+      )}
+
+      {isPromptLibraryModalOpen && (
+        <PromptLibraryModal
+          promptLibrary={promptLibrary}
+          setPromptLibrary={setPromptLibrary}
+          setIsPromptLibraryModalOpen={setIsPromptLibraryModalOpen}
+        />
+      )}
+
+      {/* {isPromptSelectModalOpen && (
+        <PromptSelectModal
+          promptLibrary={promptLibrary}
+          setPromptLibrary={setPromptLibrary}
+          setIsPromptLibraryModalOpen={setIsPromptLibraryModalOpen}
+        />
+      )} */}
+      <select
+        value={selectedPromptIndex}
+        onChange={e => setSelectedPromptIndex(Number(e.target.value))}
+        className="mb-2 text-black w-full rounded-md p-2"
+      >
+        {promptLibrary.map((p, index) => (
+          <option key={index} value={index}>
+            {p}
+          </option>
+        ))}
+      </select>
+      <div className="flex items-center space-x-4">
+        <div className="flex flex-col items-center">
+          <button
+            onClick={() => {
+              setPromptLoadingMappableAction(
+                MappableActionEnum.SetFirstPromptLoading,
+              );
+            }}
+            className={`px-4 py-2 text-white rounded ${
+              Boolean(
+                promptLoadingMappableAction ===
+                  MappableActionEnum.SetFirstPromptLoading,
+              )
+                ? 'bg-yellow-500'
+                : 'bg-blue-500'
+            }`}
+          >
+            Load Left
+          </button>
+          <textarea
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            className="mt-2 w-64 h-32 p-2 border rounded text-black"
+          />
+        </div>
+
+        <div className="flex flex-col items-center w-full">
+          <div className="flex space-x-2">
+            <button
+              onClick={() => handlePromptSelect('up')}
+              className="px-2 py-1 bg-blue-500 rounded"
+            >
+              ▲
+            </button>
+            <button
+              onClick={() => handlePromptSelect('down')}
+              className="px-2 py-1 bg-blue-500 rounded"
+            >
+              ▼
+            </button>
+            <button
+              onClick={() => handlePromptSelect('select')}
+              className="px-2 py-1 bg-green-500 text-white rounded"
+            >
+              Select
+            </button>
+          </div>
+          <div className="flex flex-col">
+            <button
+              className="text-xs w-24 rounded-lg border-2 border-blue-500 text-blue-400 font-bold text-center overflow-hidden p-2 my-2"
+              onClick={handleOpenMidiMapModal}
+            >
+              Map Midi
+            </button>
+            <button
+              className="text-xs w-24 rounded-lg border-2 border-blue-500 text-blue-400 font-bold text-center overflow-hidden p-2 my-2"
+              onClick={handlePromptLibraryModal}
+            >
+              Edit Library
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center">
+          <button
+            onClick={() => {
+              setPromptLoadingMappableAction(
+                MappableActionEnum.SetSecondPromptLoading,
+              );
+            }}
+            className={`px-4 py-2 text-white rounded ${
+              promptLoadingMappableAction ===
+              MappableActionEnum.SetSecondPromptLoading
+                ? 'bg-yellow-500'
+                : 'bg-blue-500'
+            }`}
+          >
+            Load Right
+          </button>
+          <textarea
+            value={secondPrompt}
+            onChange={e => setSecondPrompt(e.target.value)}
+            className="mt-2 w-64 h-32 p-2 border rounded text-black"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={() => sendPrompt(1)}
+          className="px-4 py-2 bg-green-500 text-white rounded"
+        >
+          Submit Prompt 1
+        </button>
+        <div className="flex items-center space-x-2">
           <input
             type="range"
-            min="0"
-            max="127"
-            value={sliderValue}
-            onChange={e => setSliderValue(parseInt(e.target.value))}
+            min={0}
+            max={1}
+            step={0.01}
+            value={blendValue}
+            onChange={e => setBlendValue(parseFloat(e.target.value))}
             className="w-64"
           />
-          <button
-            onClick={handleMapButtonClick}
-            className={`w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 font-bold
-    flex items-center justify-center
-    relative overflow-hidden
-    ${!midiEnabled && 'opacity-50 cursor-not-allowed'}
-    ${isMapping && 'text-white'}
-  `}
-            disabled={!midiEnabled}
-          >
-            <span className="z-10">M</span>
-            <div
-              className={`
-      absolute inset-0 bg-green-500 transition-transform duration-300 ease-out
-      ${isMapping ? 'scale-100' : 'scale-0'}
-    `}
-            ></div>
-          </button>
         </div>
-        <p>Slider Value: {sliderValue}</p>
-        <p>
-          Mapped Control:{' '}
-          {mappedControlRef.current
-            ? `${mappedControlRef.current.type.toUpperCase()} ${
-                mappedControlRef.current.control
-              } on channel ${mappedControlRef.current.channel}`
-            : 'Not mapped'}
-        </p>
-        <p>
-          Mapping Status:{' '}
-          {isMappingRef.current ? 'Mapping in progress' : 'Not mapping'}
-        </p>
-        <p>MIDI Status: {midiEnabled ? 'Enabled' : 'Disabled'}</p>
+        <button
+          onClick={() => sendPrompt(2)}
+          className="px-4 py-2 bg-green-500 text-white rounded"
+        >
+          Submit Prompt 2
+        </button>
       </div>
     </div>
   );
-}
+};
+
+export default MidiStuffPage;
