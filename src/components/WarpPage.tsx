@@ -204,6 +204,14 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [isAudioLoopbackSupported, setIsAudioLoopbackSupported] =
     useState(true);
 
+  // useEffect(() => {
+  //   console.log('first prompt changed1212', prompt);
+  // }, [prompt]);
+
+  // useEffect(() => {
+  //   console.log('second prompt changed1212', secondPrompt);
+  // }, [secondPrompt]);
+
   const checkAudioLoopbackSupport = async () => {
     try {
       // Check if getUserMedia is supported

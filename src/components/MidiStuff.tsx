@@ -250,10 +250,10 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
   const [isMapping, setIsMapping] = useState<boolean>(false);
   const [mappingTarget, setMappingTarget] = useState<string | null>(null);
   const [promptLibrary, setPromptLibrary] = useState<string[]>([
-    'Prompt 1',
-    'Prompt 2',
-    'Prompt 3',
-    // Add more prompts as needed
+    'a super cool dj wearing headphones, rose tinted aviator sunglasses, disco colors vibrant indoors digital illustration HDR talking',
+    'an illustration of a cyborg, cyberpunk, futuristic, glowing eyes, hdr, ray tracing, bionic, metal skin, masterpiece, high resolution, computer generated',
+    'an illustration of a super happy very happy person smiling joyful joyous',
+    'an illustration of an old grey hair person super old aged oldest',
   ]);
   const [selectedPromptIndex, setSelectedPromptIndex] = useState<number>(0);
 
@@ -388,7 +388,7 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
           setPromptLoadingMappableAction(
             MappableActionEnum.SetSecondPromptLoading,
           );
-        }        
+        }
         break;
       case 'prompt_select_up':
         setSelectedPromptIndex(prev => (prev > 0 ? prev - 1 : prev));
@@ -416,9 +416,11 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
         }
         break;
       case 'prompt_submit':
+        console.log('ps1');
         sendPrompt(1);
         break;
       case 'second_prompt_submit':
+        console.log('ps2');
         sendPrompt(2);
         break;
     }
@@ -453,7 +455,8 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
         input.removeListener('midimessage', handleAllMIDIMessages);
       });
     };
-  }, [midiEnabled, warp?.podId, selectedPromptIndex]);
+  }, [midiEnabled, warp?.podId, selectedPromptIndex, prompt, secondPrompt]);
+
   const setIsMappingBoth = useCallback((value: boolean) => {
     setIsMapping(value);
     isMappingRef.current = value;
