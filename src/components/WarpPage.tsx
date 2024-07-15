@@ -5,9 +5,11 @@ import PendingModal from '#root/src/components/PendingModal';
 import { formatTimeBalance } from '#root/utils/formattingUtils';
 import { IS_WARP_LOCAL } from '#root/utils/constants.ts';
 import useConditionalAuth from '#root/src/hooks/useConditionalAuth';
+import MidiStuffPage from '#root/src/components/MidiStuff';
 import 'image-capture';
 
 import 'react-toastify/dist/ReactToastify.css';
+
 const FRAME_WIDTH = 512;
 const FRAME_HEIGHT = 512;
 const FRAME_RATE = 30;
@@ -164,7 +166,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [postText, setPostText] = useState('');
   const [isRendering, setIsRendering] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showDJMode, setShowDJMode] = useState(false);
   const [isRenderSmooth, setIsRenderSmooth] = useState(false);
+  const [dropEvery, setDropEvery] = useState();
 
   const [calculatedFps, setcalculatedFps] = useState(0);
   const [warp, setWarp] = useState<any>(null);
@@ -198,7 +202,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const blendTimeoutIdRef = useRef(null);
 
   const [isAudioLoopbackSupported, setIsAudioLoopbackSupported] =
-    useState(false);
+    useState(true);
 
   const checkAudioLoopbackSupport = async () => {
     try {
@@ -234,17 +238,29 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       return false;
     }
   };
-  useEffect(() => {
-    const checkSupport = async () => {
-      const isSupported = await checkAudioLoopbackSupport();
-      setIsAudioLoopbackSupported(isSupported);
-    };
 
-    checkSupport();
+  useEffect(() => {
+    console.log('set drop every1212', dropEvery);
+    if (dropEvery) {
+      dropEveryRef.current = dropEvery;
+      localStorage.setItem('dropEvery', dropEvery);
+    }
+  }, [dropEvery]);
+
+  useEffect(() => {
+    if (localStorage.getItem('dropEvery')) {
+      setDropEvery(localStorage.getItem('dropEvery') || 'none');
+    }
   }, []);
   const toggleAudioLoopback = async () => {
     if (!isAudioLoopbackActive) {
       try {
+        const checkSupport = async () => {
+          const isSupported = await checkAudioLoopbackSupport();
+          setIsAudioLoopbackSupported(isSupported);
+        };
+
+        checkSupport();
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           throw new Error('getUserMedia is not supported in this browser');
         }
@@ -349,6 +365,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
   const handleClickShowAdvanced = prev => {
     setShowAdvanced(prev => !prev);
+  };
+  const handleClickShowDJMode = prev => {
+    setShowDJMode(prev => !prev);
   };
 
   useEffect(() => {
@@ -722,7 +741,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         blendTimeoutIdRef.current = setTimeout(() => {
           sendBlendRequest(value);
           lastBlendSendTimeRef.current = Date.now();
-        }, 24);
+        }, 60);
       }
     },
     [sendBlendRequest],
@@ -1116,6 +1135,12 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           >
             End Warp
           </button>
+          <button
+            onClick={handleClickShowDJMode}
+            className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
+          >
+            DJ Mode
+          </button>
         </div>
         {showAdvanced && (
           <div>
@@ -1130,9 +1155,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             <select
               id="frameDrop"
               className="w-full p-3 mb-5 border border-[#4a4a4a] rounded-md text-base bg-[#1e1e1e] text-[#e0e0e0]"
+              value={dropEvery}
               onChange={e => {
                 console.log('Selected frame drop:', e.target.value);
-                dropEveryRef.current = e.target.value;
+                setDropEvery(e.target.value);
               }}
             >
               <option value="none">None</option>
@@ -1141,7 +1167,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
               <option value="4">4</option>
               <option value="5">5</option>
             </select>
-            <textarea
+            {/* <textarea
               value={secondPrompt}
               onChange={e => setSecondPrompt(e.target.value)}
               onKeyDown={e => {
@@ -1158,9 +1184,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
               className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0"
             >
               Send Second Prompt
-            </button>
+            </button> */}
 
-            <div className="w-full mb-4">
+            {/* <div className="w-full mb-4">
               <label
                 htmlFor="blendSlider"
                 className="block text-sm font-medium text-[#e0e0e0] mb-2"
@@ -1177,8 +1203,20 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
                 onChange={e => setBlendValue(parseFloat(e.target.value))}
                 className="w-full h-2 bg-[#4a4a4a] rounded-lg appearance-none cursor-pointer"
               />
-            </div>
+            </div> */}
           </div>
+        )}
+        {showDJMode && (
+          <MidiStuffPage
+            sendPrompt={sendPrompt}
+            prompt={prompt}
+            setPrompt={setPrompt}
+            secondPrompt={secondPrompt}
+            setSecondPrompt={setSecondPrompt}
+            blendValue={blendValue}
+            setBlendValue={setBlendValue}
+            warp={warp}
+          />
         )}
 
         <div className="w-full flex flex-col-reverse sm:flex-row">
