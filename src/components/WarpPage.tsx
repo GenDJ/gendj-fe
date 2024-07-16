@@ -712,6 +712,20 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     return frameTimestamps.length;
   }
 
+  useEffect(() => {
+    const handleEscKey = event => {
+      if (event.key === 'Escape' && isFullBrowser) {
+        setIsFullBrowser(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscKey);
+    };
+  }, [isFullBrowser]);
+
   const sendPrompt = useCallback(
     (promptIndex = 1) => {
       if (!warp?.podId) {
@@ -1254,7 +1268,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             onClick={toggleFullBrowser}
             className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
           >
-            Full Browser
+            Fullscreen
           </button>
         </div>
         {showAdvanced && (
@@ -1273,6 +1287,8 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
                 {isAudioLoopbackActive ? 'Stop' : 'Start'} Mic Loopback for
                 screen recording
               </button>
+            </div>
+            <div className="my-2">
               <button
                 onClick={toggleFullscreen}
                 className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
@@ -1432,10 +1448,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             className={`${
               isFullBrowser
                 ? 'fixed top-0 left-0 w-screen h-screen z-50'
-                : 'w-full sm:w-1/2 max-w-[512px] rounded-md shadow-md mb-5 sm:mb-0 sm:ml-2'
+                : 'w-full sm:w-1/2 max-w-[512px] rounded-md shadow-md mb-5 sm:mb-0 sm:ml-2 cropped'
             }${isStreamingRef?.current ? '' : ' hidden'}`}
             style={{
-              objectFit: isFullBrowser ? 'contain' : 'none',
+              objectFit: isFullBrowser ? 'contain' : 'cover',
               backgroundColor: isFullBrowser ? 'black' : 'transparent',
             }}
           />
