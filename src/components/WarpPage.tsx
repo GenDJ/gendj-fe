@@ -893,7 +893,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
           scaleWidth = FRAME_WIDTH / video.videoWidth;
           scaleHeight = FRAME_HEIGHT / video.videoHeight;
-          scale = Math.min(scaleWidth, scaleHeight);
+          scale = Math.max(scaleWidth, scaleHeight); // Change min to max
 
           scaledWidth = video.videoWidth * scale;
           scaledHeight = video.videoHeight * scale;
