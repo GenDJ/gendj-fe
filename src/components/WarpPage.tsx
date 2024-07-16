@@ -767,44 +767,39 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     [warp, prompt, postText, secondPrompt],
   );
 
-  const sendBlendRequest = useCallback(
-    value => {
-      if (!warp?.podId) {
-        return;
-      }
-      const promptEndpointUrl = buildBlendEndpointUrlFromPodId(warp.podId);
-      const endpoint = `${promptEndpointUrl}${value}`;
+  const sendBlendRequest = value => {
+    if (!warp?.podId) {
+      return;
+    }
+    const promptEndpointUrl = buildBlendEndpointUrlFromPodId(warp.podId);
+    const endpoint = `${promptEndpointUrl}${value}`;
 
-      fetch(endpoint, {
-        method: 'POST',
+    fetch(endpoint, {
+      method: 'POST',
+    })
+      .then(response => response.text())
+      .then(data => {
+        console.log('Blend response:', data);
       })
-        .then(response => response.text())
-        .then(data => {
-          console.log('Blend response:', data);
-        })
-        .catch(error => {
-          console.error('Error sending blend value:', error);
-        });
-    },
-    [warp],
-  );
+      .catch(error => {
+        console.error('Error sending blend value:', error);
+      });
+  };
 
-  const handleSliderChange = useCallback(
-    value => {
-      const now = Date.now();
-      if (now - lastBlendSendTimeRef.current >= 24) {
+  const handleSliderChange = value => {
+    console.log('hsc1212', value);
+    const now = Date.now();
+    if (now - lastBlendSendTimeRef.current >= 24) {
+      sendBlendRequest(value);
+      lastBlendSendTimeRef.current = now;
+    } else {
+      clearTimeout(blendTimeoutIdRef.current);
+      blendTimeoutIdRef.current = setTimeout(() => {
         sendBlendRequest(value);
-        lastBlendSendTimeRef.current = now;
-      } else {
-        clearTimeout(blendTimeoutIdRef.current);
-        blendTimeoutIdRef.current = setTimeout(() => {
-          sendBlendRequest(value);
-          lastBlendSendTimeRef.current = Date.now();
-        }, 60);
-      }
-    },
-    [sendBlendRequest],
-  );
+        lastBlendSendTimeRef.current = Date.now();
+      }, 60);
+    }
+  };
 
   useEffect(() => {
     handleSliderChange(blendValue);
@@ -812,7 +807,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     return () => {
       clearTimeout(blendTimeoutIdRef.current);
     };
-  }, [blendValue, handleSliderChange]);
+  }, [blendValue]);
 
   const handleClickEndWarp = useCallback(() => {
     if (!warp?.id) {
