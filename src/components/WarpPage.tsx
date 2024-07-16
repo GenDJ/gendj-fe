@@ -154,6 +154,9 @@ const dropFrameStrategies: Record<string, (frameCounter: number) => boolean> = {
 const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const { getToken, isLoaded } = useConditionalAuth();
 
+  const videoRef = useRef(null);
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
+
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [devices, setDevices] = useState([]);
   const [prompt, setPrompt] = useState(
@@ -165,6 +168,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
   const [postText, setPostText] = useState('');
   const [isRendering, setIsRendering] = useState(false);
+  const [isVideoFileMuted, setIsVideoFileMuted] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showDJMode, setShowDJMode] = useState(false);
   const [isRenderSmooth, setIsRenderSmooth] = useState(false);
@@ -211,6 +215,8 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   // useEffect(() => {
   //   console.log('second prompt changed1212', secondPrompt);
   // }, [secondPrompt]);
+
+  // Looping checkbox handler
 
   const checkAudioLoopbackSupport = async () => {
     try {
@@ -794,7 +800,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     }
   }, [warp?.id]);
 
-  // sendframes
+  //sendframes
   useEffect(() => {
     const videoTrack = currentStream?.getVideoTracks()?.[0];
     if (!videoTrack) {
@@ -830,53 +836,79 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       }
 
       try {
-        if (videoTrack.readyState === 'live') {
+        const video = videoRef.current;
+        let frame,
+          scaleWidth,
+          scaleHeight,
+          scale,
+          scaledWidth,
+          scaledHeight,
+          dx,
+          dy;
+
+        if (video) {
+          frame = video;
+          croppedCanvas.width = FRAME_WIDTH;
+          croppedCanvas.height = FRAME_HEIGHT;
+
+          scaleWidth = FRAME_WIDTH / video.videoWidth;
+          scaleHeight = FRAME_HEIGHT / video.videoHeight;
+          scale = Math.min(scaleWidth, scaleHeight);
+
+          scaledWidth = video.videoWidth * scale;
+          scaledHeight = video.videoHeight * scale;
+
+          dx = (FRAME_WIDTH - scaledWidth) / 2;
+          dy = (FRAME_HEIGHT - scaledHeight) / 2;
+          croppedCtx.clearRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+          croppedCtx.drawImage(video, dx, dy, scaledWidth, scaledHeight);
+        } else if (videoTrack.readyState === 'live') {
           if (!imageCaptureInstance) {
             console.log('no image capture instance1212');
             return;
           }
 
-          const frame = await imageCaptureInstance.grabFrame();
+          frame = await imageCaptureInstance.grabFrame();
 
           croppedCanvas.width = FRAME_WIDTH;
           croppedCanvas.height = FRAME_HEIGHT;
 
-          const scaleWidth = FRAME_WIDTH / frame.width;
-          const scaleHeight = FRAME_HEIGHT / frame.height;
-          const scale = Math.min(scaleWidth, scaleHeight);
+          scaleWidth = FRAME_WIDTH / frame.width;
+          scaleHeight = FRAME_HEIGHT / frame.height;
+          scale = Math.min(scaleWidth, scaleHeight);
 
-          const scaledWidth = frame.width * scale;
-          const scaledHeight = frame.height * scale;
+          scaledWidth = frame.width * scale;
+          scaledHeight = frame.height * scale;
 
-          const dx = (FRAME_WIDTH - scaledWidth) / 2;
-          const dy = (FRAME_HEIGHT - scaledHeight) / 2;
+          dx = (FRAME_WIDTH - scaledWidth) / 2;
+          dy = (FRAME_HEIGHT - scaledHeight) / 2;
 
           croppedCtx.clearRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
           croppedCtx.drawImage(frame, dx, dy, scaledWidth, scaledHeight);
-
-          croppedCanvas.toBlob(
-            blob => {
-              if (
-                blob &&
-                isStreamingRef.current &&
-                socketRef?.current?.readyState === WebSocket.OPEN &&
-                dropFrameStrategies[dropEveryRef.current](frameCounter)
-              ) {
-                blob.arrayBuffer().then(buffer => {
-                  if (socketRef?.current?.readyState === WebSocket.OPEN) {
-                    // console.log('sending frame12122');
-                    socketRef?.current?.send(buffer);
-                  }
-                });
-              }
-              lastFrameTime = currentTime;
-              animationFrameId = requestAnimationFrame(sendFrame);
-              frameCounter++;
-            },
-            'image/jpeg',
-            0.8,
-          );
         }
+
+        croppedCanvas.toBlob(
+          blob => {
+            if (
+              blob &&
+              isStreamingRef.current &&
+              socketRef?.current?.readyState === WebSocket.OPEN &&
+              dropFrameStrategies[dropEveryRef.current](frameCounter)
+            ) {
+              blob.arrayBuffer().then(buffer => {
+                if (socketRef?.current?.readyState === WebSocket.OPEN) {
+                  // console.log('sending frame12122');
+                  socketRef?.current?.send(buffer);
+                }
+              });
+            }
+            lastFrameTime = currentTime;
+            animationFrameId = requestAnimationFrame(sendFrame);
+            frameCounter++;
+          },
+          'image/jpeg',
+          0.8,
+        );
       } catch (error) {
         console.error('Error capturing frame:', error);
       }
@@ -1022,6 +1054,20 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     };
   }, [warp?.id, warp?.podStatus]);
 
+  const handleFileSelect = event => {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('video/')) {
+      const url = URL.createObjectURL(file);
+
+      setVideoSrc(url);
+    }
+  };
+
+  const clearVideo = () => {
+    setVideoSrc(null);
+    videoRef.current = null;
+  };
+
   return (
     <div className="bg-[#121212] text-[#e0e0e0] font-sans flex flex-col items-center px-5">
       {warp?.podStatus === 'PENDING' && (
@@ -1119,18 +1165,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           >
             {isStreamingRef.current ? 'Stop' : 'Start'} Warping
           </button>
-          <button
-            onClick={toggleAudioLoopback}
-            className={`${
-              isAudioLoopbackActive ? 'bg-[#e74c3c]' : 'bg-[#4a90e2]'
-            } text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[${
-              isAudioLoopbackActive ? '#c0392b' : '#3a7bd5'
-            }] hover:-translate-y-0.5 active:translate-y-0 ${
-              isAudioLoopbackSupported ? '' : 'hidden'
-            }`}
-          >
-            {isAudioLoopbackActive ? 'Stop' : 'Start'} Mic Loopback
-          </button>
+
           <button
             onClick={handleClickShowAdvanced}
             className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
@@ -1152,6 +1187,21 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         </div>
         {showAdvanced && (
           <div>
+            <div className="my-2">
+              <button
+                onClick={toggleAudioLoopback}
+                className={`${
+                  isAudioLoopbackActive ? 'bg-[#e74c3c]' : 'bg-[#4a90e2]'
+                } text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[${
+                  isAudioLoopbackActive ? '#c0392b' : '#3a7bd5'
+                }] hover:-translate-y-0.5 active:translate-y-0 ${
+                  isAudioLoopbackSupported ? '' : 'hidden'
+                }`}
+              >
+                {isAudioLoopbackActive ? 'Stop' : 'Start'} Mic Loopback for
+                screen recording
+              </button>
+            </div>
             <p>FPS: {calculatedFps}</p>
             <p>
               Frames in frontend render queue: {frameQueueRef?.current?.length}
@@ -1175,6 +1225,67 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
               <option value="4">4</option>
               <option value="5">5</option>
             </select>
+            <div className="mb-4">
+              <label
+                htmlFor="videoUpload"
+                className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0 inline-block"
+              >
+                Use Video File Source Instead of Webcam
+              </label>
+              <input
+                id="videoUpload"
+                type="file"
+                accept="video/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>{' '}
+            {videoSrc && (
+              <div className="mb-4">
+                <video
+                  ref={videoRef}
+                  src={videoSrc}
+                  controls
+                  autoPlay
+                  loop
+                  muted={isVideoFileMuted}
+                  className="mb-4"
+                  style={{
+                    maxWidth: '512px',
+                    maxHeight: '512px',
+                    display: 'none',
+                  }}
+                />
+                <button
+                  onClick={clearVideo}
+                  className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0 mr-2"
+                >
+                  Clear Video
+                </button>
+                <button
+                  onClick={() => {
+                    const video = videoRef.current;
+                    if (video.paused) {
+                      video.play();
+                    } else {
+                      video.pause();
+                    }
+                  }}
+                  className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0 mr-2"
+                >
+                  Play/Pause
+                </button>
+                <label className="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={isVideoFileMuted}
+                    onChange={() => setIsVideoFileMuted(prev => !prev)}
+                    className="mr-2"
+                  />
+                  Mute Video
+                </label>
+              </div>
+            )}
             {/* <textarea
               value={secondPrompt}
               onChange={e => setSecondPrompt(e.target.value)}
@@ -1193,7 +1304,6 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             >
               Send Second Prompt
             </button> */}
-
             {/* <div className="w-full mb-4">
               <label
                 htmlFor="blendSlider"
