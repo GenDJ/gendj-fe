@@ -12,26 +12,28 @@ interface MidiStuffPageProps {
 }
 enum MappableActionEnum {
   Fader = 'fader',
-  SetFirstPromptLoading = 'set_first_prompt_loading',
-  SetSecondPromptLoading = 'set_second_prompt_loading',
+  LoadFirstPrompt = 'load_first_prompt',
+  LoadSecondPrompt = 'load_second_prompt',
   PromptSelectUp = 'prompt_select_up',
   PromptSelectDown = 'prompt_select_down',
-  PromptSelectConfirm = 'prompt_select_confirm',
   PromptSubmit = 'prompt_submit',
   SecondPromptSubmit = 'second_prompt_submit',
+  PreviousCamera = 'previous_camera',
+  NextCamera = 'next_camera',
 }
 
 type MappableAction = typeof MappableActionEnum;
 
 const mappableActionTitles: Record<MappableActionEnum, string> = {
   [MappableActionEnum.Fader]: 'Fader',
-  [MappableActionEnum.SetFirstPromptLoading]: 'Set First Prompt Loading',
-  [MappableActionEnum.SetSecondPromptLoading]: 'Set Second Prompt Loading',
+  [MappableActionEnum.LoadFirstPrompt]: 'Load First Prompt',
+  [MappableActionEnum.LoadSecondPrompt]: 'Load Second Prompt',
   [MappableActionEnum.PromptSelectUp]: 'Prompt Select Up',
   [MappableActionEnum.PromptSelectDown]: 'Prompt Select Down',
-  [MappableActionEnum.PromptSelectConfirm]: 'Prompt Select Confirm',
-  [MappableActionEnum.PromptSubmit]: 'Prompt Submit',
+  [MappableActionEnum.PromptSubmit]: 'First Prompt Submit',
   [MappableActionEnum.SecondPromptSubmit]: 'Second Prompt Submit',
+  [MappableActionEnum.PreviousCamera]: 'Previous camera',
+  [MappableActionEnum.NextCamera]: 'Next camera',
 };
 
 function findMappedControl(
@@ -245,6 +247,9 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
   blendValue,
   setBlendValue,
   warp,
+  switchToNextDevice,
+  switchToPreviousDevice,
+  selectedDeviceId,
 }) => {
   const [midiEnabled, setMidiEnabled] = useState<boolean>(false);
   const [isMapping, setIsMapping] = useState<boolean>(false);
@@ -357,6 +362,9 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
       warp?.podId,
       promptLoadingMappableAction,
       selectedPromptIndex,
+      selectedDeviceId,
+      prompt,
+      secondPrompt,
     ],
   );
 
@@ -365,30 +373,11 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
       case 'fader':
         setBlendValue(Number((value / 127).toFixed(2)));
         break;
-      case 'set_first_prompt_loading':
-        if (
-          promptLoadingMappableActionRef?.current ===
-          MappableActionEnum.SetFirstPromptLoading
-        ) {
-          setPromptLoadingMappableAction(null);
-        } else {
-          setPromptLoadingMappableAction(
-            MappableActionEnum.SetFirstPromptLoading,
-          );
-        }
-
+      case 'load_first_prompt':
+        setPrompt(promptLibrary[selectedPromptIndex]);
         break;
-      case 'set_second_prompt_loading':
-        if (
-          promptLoadingMappableActionRef?.current ===
-          MappableActionEnum.SetSecondPromptLoading
-        ) {
-          setPromptLoadingMappableAction(null);
-        } else {
-          setPromptLoadingMappableAction(
-            MappableActionEnum.SetSecondPromptLoading,
-          );
-        }
+      case 'load_second_prompt':
+        setSecondPrompt(promptLibrary[selectedPromptIndex]);
         break;
       case 'prompt_select_up':
         setSelectedPromptIndex(prev => (prev > 0 ? prev - 1 : prev));
@@ -398,23 +387,7 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
           prev < promptLibrary.length - 1 ? prev + 1 : prev,
         );
         break;
-      case 'prompt_select_confirm':
-        if (promptLoadingMappableActionRef?.current) {
-          if (
-            promptLoadingMappableActionRef?.current ===
-            MappableActionEnum.SetFirstPromptLoading
-          ) {
-            setPrompt(promptLibrary[selectedPromptIndex]);
-            setPromptLoadingMappableAction(null);
-          } else if (
-            promptLoadingMappableActionRef?.current ===
-            MappableActionEnum.SetSecondPromptLoading
-          ) {
-            setSecondPrompt(promptLibrary[selectedPromptIndex]);
-            setPromptLoadingMappableAction(null);
-          }
-        }
-        break;
+
       case 'prompt_submit':
         console.log('ps1');
         sendPrompt(1);
@@ -422,6 +395,12 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
       case 'second_prompt_submit':
         console.log('ps2');
         sendPrompt(2);
+        break;
+      case 'previous_camera':
+        switchToPreviousDevice();
+        break;
+      case 'next_camera':
+        switchToNextDevice();
         break;
     }
   };
@@ -455,7 +434,14 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
         input.removeListener('midimessage', handleAllMIDIMessages);
       });
     };
-  }, [midiEnabled, warp?.podId, selectedPromptIndex, prompt, secondPrompt]);
+  }, [
+    midiEnabled,
+    warp?.podId,
+    selectedPromptIndex,
+    prompt,
+    secondPrompt,
+    selectedDeviceId,
+  ]);
 
   const setIsMappingBoth = useCallback((value: boolean) => {
     setIsMapping(value);
@@ -486,13 +472,13 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
         if (promptLoadingMappableActionRef?.current) {
           if (
             promptLoadingMappableActionRef?.current ===
-            MappableActionEnum.SetFirstPromptLoading
+            MappableActionEnum.LoadFirstPrompt
           ) {
             setPrompt(promptLibrary[selectedPromptIndex]);
             setPromptLoadingMappableAction(null);
           } else if (
             promptLoadingMappableActionRef?.current ===
-            MappableActionEnum.SetSecondPromptLoading
+            MappableActionEnum.LoadSecondPrompt
           ) {
             console.log('set second');
             setSecondPrompt(promptLibrary[selectedPromptIndex]);
@@ -558,20 +544,11 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
         <div className="flex flex-col items-center">
           <button
             onClick={() => {
-              setPromptLoadingMappableAction(
-                MappableActionEnum.SetFirstPromptLoading,
-              );
+              setPrompt(promptLibrary[selectedPromptIndex]);
             }}
-            className={`px-4 py-2 text-white rounded ${
-              Boolean(
-                promptLoadingMappableAction ===
-                  MappableActionEnum.SetFirstPromptLoading,
-              )
-                ? 'bg-yellow-500'
-                : 'bg-blue-500'
-            }`}
+            className={`px-4 py-2 text-white rounded bg-blue-500`}
           >
-            Load Left
+            Load First Prompt
           </button>
           <textarea
             value={prompt}
@@ -594,12 +571,12 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
             >
               ▼
             </button>
-            <button
+            {/* <button
               onClick={() => handlePromptSelect('select')}
               className="px-2 py-1 bg-green-500 text-white rounded"
             >
               Select
-            </button>
+            </button> */}
           </div>
           <div className="flex flex-col">
             <button
@@ -620,18 +597,11 @@ const MidiStuffPage: React.FC<MidiStuffPageProps> = ({
         <div className="flex flex-col items-center">
           <button
             onClick={() => {
-              setPromptLoadingMappableAction(
-                MappableActionEnum.SetSecondPromptLoading,
-              );
+              setSecondPrompt(promptLibrary[selectedPromptIndex]);
             }}
-            className={`px-4 py-2 text-white rounded ${
-              promptLoadingMappableAction ===
-              MappableActionEnum.SetSecondPromptLoading
-                ? 'bg-yellow-500'
-                : 'bg-blue-500'
-            }`}
+            className={`px-4 py-2 text-white rounded bg-blue-500`}
           >
-            Load Right
+            Load Second Prompt
           </button>
           <textarea
             value={secondPrompt}

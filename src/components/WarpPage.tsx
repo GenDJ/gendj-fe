@@ -165,6 +165,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [secondPrompt, setSecondPrompt] = useState('A psychedellic landscape.');
   const [selectedPrompt, setSelectedPrompt] = useState('');
   const [blendValue, setBlendValue] = useState(0); // ... other
+  const [isFullBrowser, setIsFullBrowser] = useState(false);
 
   const [postText, setPostText] = useState('');
   const [isRendering, setIsRendering] = useState(false);
@@ -217,6 +218,36 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   // }, [secondPrompt]);
 
   // Looping checkbox handler
+
+  const toggleFullBrowser = () => {
+    setIsFullBrowser(prev => !prev);
+  };
+
+  const switchToNextDevice = useCallback(() => {
+    const currentDeviceIndex = devices.findIndex(
+      device => device.deviceId === selectedDeviceId,
+    );
+    const nextDeviceIndex = currentDeviceIndex + 1;
+    const nextDevice = devices[nextDeviceIndex % devices.length];
+    setSelectedDeviceId(nextDevice.deviceId);
+    console.log(
+      'switchToNextDevice1212',
+      selectedDeviceId,
+      currentDeviceIndex,
+      nextDeviceIndex,
+      devices,
+    );
+  }, [selectedDeviceId]);
+
+  const switchToPreviousDevice = useCallback(() => {
+    const currentDeviceIndex = devices.findIndex(
+      device => device.deviceId === selectedDeviceId,
+    );
+    const previousDeviceIndex =
+      (currentDeviceIndex - 1 + devices.length) % devices.length;
+    const previousDevice = devices[previousDeviceIndex];
+    setSelectedDeviceId(previousDevice.deviceId);
+  }, [selectedDeviceId]);
 
   const checkAudioLoopbackSupport = async () => {
     try {
@@ -925,6 +956,39 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     };
   }, [currentStream]);
 
+  const toggleFullscreen = () => {
+    const canvas = processedCanvasRef.current;
+    if (!canvas) return;
+
+    if (!document.fullscreenElement) {
+      if (canvas.requestFullscreen) {
+        canvas.requestFullscreen();
+      } else if (canvas.mozRequestFullScreen) {
+        // Firefox
+        canvas.mozRequestFullScreen();
+      } else if (canvas.webkitRequestFullscreen) {
+        // Chrome, Safari and Opera
+        canvas.webkitRequestFullscreen();
+      } else if (canvas.msRequestFullscreen) {
+        // IE/Edge
+        canvas.msRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        // Firefox
+        document.mozCancelFullScreen();
+      } else if (document.webkitExitFullscreen) {
+        // Chrome, Safari and Opera
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        // IE/Edge
+        document.msExitFullscreen();
+      }
+    }
+  };
+
   useEffect(() => {
     console.log('connectWebSocket1212', socketRef.current, warp);
     if (!warp?.podId) {
@@ -1086,6 +1150,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       </h2>
       <div className="max-w-[800px] w-full bg-[#1e1e1e] rounded-lg shadow-lg p-8 mb-5">
         <select
+          value={selectedDeviceId || ''}
           onChange={e => {
             setSelectedDeviceId(e.target.value);
             // startVideoStream(e.target.value);
@@ -1184,6 +1249,13 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           >
             DJ Mode
           </button>
+
+          <button
+            onClick={toggleFullBrowser}
+            className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
+          >
+            Full Browser
+          </button>
         </div>
         {showAdvanced && (
           <div>
@@ -1200,6 +1272,12 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
               >
                 {isAudioLoopbackActive ? 'Stop' : 'Start'} Mic Loopback for
                 screen recording
+              </button>
+              <button
+                onClick={toggleFullscreen}
+                className="bg-[#2c3e50] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#34495e] hover:-translate-y-0.5 active:translate-y-0"
+              >
+                Complete Fullscreen
               </button>
             </div>
             <p>FPS: {calculatedFps}</p>
@@ -1334,6 +1412,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             blendValue={blendValue}
             setBlendValue={setBlendValue}
             warp={warp}
+            switchToNextDevice={switchToNextDevice}
+            switchToPreviousDevice={switchToPreviousDevice}
+            selectedDeviceId={selectedDeviceId}
           />
         )}
 
@@ -1348,9 +1429,15 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             ref={processedCanvasRef}
             width={FRAME_WIDTH}
             height={FRAME_HEIGHT}
-            className={`w-full sm:w-1/2 max-w-[512px] rounded-md shadow-md mb-5 sm:mb-0 sm:ml-2${
-              isStreamingRef?.current ? '' : ' hidden'
-            }`}
+            className={`${
+              isFullBrowser
+                ? 'fixed top-0 left-0 w-screen h-screen z-50'
+                : 'w-full sm:w-1/2 max-w-[512px] rounded-md shadow-md mb-5 sm:mb-0 sm:ml-2'
+            }${isStreamingRef?.current ? '' : ' hidden'}`}
+            style={{
+              objectFit: isFullBrowser ? 'contain' : 'none',
+              backgroundColor: isFullBrowser ? 'black' : 'transparent',
+            }}
           />
         </div>
       </div>
@@ -1365,6 +1452,16 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         theme="dark"
         transition={Bounce}
       />
+      {isFullBrowser && (
+        <div className="fixed top-4 right-4 z-50">
+          <button
+            onClick={() => setIsFullBrowser(false)}
+            className="bg-[#4a4a4a] text-white p-2 rounded-full"
+          >
+            X
+          </button>
+        </div>
+      )}
     </div>
   );
 };
