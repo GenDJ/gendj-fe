@@ -198,6 +198,8 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [calculatedFps, setcalculatedFps] = useState(0);
   const [warp, setWarp] = useState<Warp | null>(null);
   const [isPollingWarpStatus, setIsPollingWarpStatus] = useState(false);
+  const [isConnectingWebSocket, setIsConnectingWebSocket] = useState(false);
+  const [hasWebSocketConnectedOnce, setHasWebSocketConnectedOnce] = useState(false);
   const [currentStream, setCurrentStream] = useState<MediaStream | null>(null);
 
   const [areWebcamPermissionsGranted, setAreWebcamPermissionsGranted] =
@@ -683,7 +685,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
               case 'IN_PROGRESS':
                 console.log('Warp is IN_PROGRESS. Stopping polling.');
                 setIsPollingWarpStatus(false);
-                // Potentially clear any pending/loading UI state here
+                // Initiate WebSocket connection phase
+                setIsConnectingWebSocket(true);
+                setHasWebSocketConnectedOnce(false); // Reset connection tracker
                 break;
               case 'COMPLETED':
               case 'FAILED':
@@ -692,10 +696,11 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
                 setIsPollingWarpStatus(false);
                 // Handle terminal state (e.g., show error message)
                  setUiError(`Warp session ended with status: ${updatedWarp.jobStatus}. Please refresh.`);
-                 // Maybe close WebSocket if it was somehow connected
-                  if (socketRef.current) {
-                    socketRef.current.close();
-                  }
+                 // Ensure connecting state is false if warp ends terminally
+                 setIsConnectingWebSocket(false);
+                 if (socketRef.current) {
+                   socketRef.current.close();
+                 }
                 break;
               case 'IN_QUEUE':
                 console.log('Warp is still IN_QUEUE. Continuing poll.');
@@ -1194,6 +1199,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
     let newSocket: WebSocket | null = null;
     let connectAttemptTimeout: NodeJS.Timeout | null = null;
+    let initialConnectTimeout: NodeJS.Timeout | null = null;
 
     const connectWebSocket = () => {
       // Check again right before connection attempt
@@ -1216,6 +1222,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
       newSocket.onopen = () => {
         console.log('WebSocket connection openeddd');
+        // Connection successful, clear connecting state
+        setIsConnectingWebSocket(false);
+        setHasWebSocketConnectedOnce(true);
         if (currentToastRef.current) {
           toast.dismiss(currentToastRef.current);
         }
@@ -1245,7 +1254,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             'WebSocket closed unexpectedly while warp should be IN_PROGRESS. Reconnecting...',
             currentWarpRef.current,
           );
-          showWarningToast();
+          // Only show warning if it had previously connected
+          if (hasWebSocketConnectedOnce) {
+             showWarningToast();
+          }
           // Implement exponential backoff or simple delay for reconnection
           if (connectAttemptTimeout) clearTimeout(connectAttemptTimeout);
           connectAttemptTimeout = setTimeout(connectWebSocket, 5000); // Reconnect after 5 seconds
@@ -1255,24 +1267,40 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
              currentWarpRef.current,
           );
           socketRef.current = null; // Clear the ref if connection closed intentionally
+          // Ensure connecting state is false if warp stops
+          setIsConnectingWebSocket(false);
+          setHasWebSocketConnectedOnce(false);
         }
       };
 
       newSocket.onerror = error => {
-        showWarningToast();
-
+        // Only show warning toast if it had previously connected
+        if (hasWebSocketConnectedOnce) {
+           showWarningToast();
+        }
         console.error('WebSocket errorrr:', error, socketRef?.current);
       };
 
       console.log('settingCurrentSocket1212');
     };
 
-    // Initiate connection if conditions are met
-    connectWebSocket();
+    // Initiate connection if conditions are met, but with an initial delay
+    console.log('Conditions met for WebSocket. Scheduling initial connection attempt...');
+    // Clear any existing initial timeout before setting a new one
+    if (initialConnectTimeout) clearTimeout(initialConnectTimeout);
+    
+    initialConnectTimeout = setTimeout(() => {
+        console.log('Initial delay complete. Attempting first WebSocket connection...');
+        connectWebSocket();
+    }, 3000); // 3-second initial delay
 
     // Cleanup function
     return () => {
        console.log('Cleaning up WebSocket effect...');
+       // Clear both potential timeouts
+       if (initialConnectTimeout) {
+         clearTimeout(initialConnectTimeout);
+       }
        if (connectAttemptTimeout) {
          clearTimeout(connectAttemptTimeout);
        }
@@ -1284,6 +1312,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
          newSocket.close();
          socketRef.current = null;
       }
+      // Clear connecting state on cleanup or if status changes
+      setIsConnectingWebSocket(false);
+      setHasWebSocketConnectedOnce(false);
     };
   // Depend on the job status and worker ID being present
   }, [warp?.jobStatus, warp?.workerId, showWarningToast]); // Added showWarningToast
@@ -1304,8 +1335,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
   return (
     <div className="bg-[#121212] text-[#e0e0e0] font-sans flex flex-col items-center px-5">
-      {(warp?.jobStatus === 'IN_QUEUE' || isPollingWarpStatus) && warp?.jobStatus !== 'IN_PROGRESS' && (
+      {(warp?.jobStatus === 'IN_QUEUE' || isConnectingWebSocket) && warp?.jobStatus !== 'COMPLETED' && warp?.jobStatus !== 'FAILED' && warp?.jobStatus !== 'CANCELLED' && (
         <PendingModal
+          isConnecting={isConnectingWebSocket}
           handleClickEndWarp={handleClickEndWarp}
         />
       )}
