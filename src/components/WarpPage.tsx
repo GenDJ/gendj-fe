@@ -174,11 +174,11 @@ const dropFrameStrategies: Record<string, (frameCounter: number) => boolean> = {
 const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const { getToken, isLoaded } = useConditionalAuth();
 
-  const videoRef = useRef(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
 
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-  const [devices, setDevices] = useState([]);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [prompt, setPrompt] = useState(
     'illustration of a dj sunglasses disco colors vibrant digital illustration HDR talking',
   );
@@ -193,7 +193,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showDJMode, setShowDJMode] = useState(false);
   const [isRenderSmooth, setIsRenderSmooth] = useState(false);
-  const [dropEvery, setDropEvery] = useState();
+  const [dropEvery, setDropEvery] = useState<string>('none');
 
   const [calculatedFps, setcalculatedFps] = useState(0);
   const [warp, setWarp] = useState<Warp | null>(null);
@@ -218,16 +218,19 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const frameQueueRef = useRef<HTMLImageElement[]>([]);
   const frameTimestampsRef = useRef<number[]>([]);
   const isStreamingRef = useRef(false);
-  const [audioDevices, setAudioDevices] = useState([]);
-  const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState(null);
-  const audioContextRef = useRef(null);
-  const audioStreamRef = useRef(null);
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
 
   const lastBlendSendTimeRef = useRef(0);
-  const blendTimeoutIdRef = useRef(null);
+  const blendTimeoutIdRef = useRef<number | null>(null);
 
   const [isAudioLoopbackSupported, setIsAudioLoopbackSupported] =
     useState(true);
+
+  // Ref to track initial mount for blendValue effect
+  const isInitialBlendMount = useRef(true);
 
   // useEffect(() => {
   //   console.log('first prompt changed1212', prompt);
@@ -277,7 +280,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       }
 
       // Check if AudioContext is supported
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const AudioContext = window.AudioContext;
       if (!AudioContext) {
         return false;
       }
@@ -339,7 +342,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         });
         audioStreamRef.current = stream;
 
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const AudioContext = window.AudioContext;
         if (!AudioContext) {
           throw new Error('AudioContext is not supported in this browser');
         }
@@ -352,16 +355,20 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         setIsAudioLoopbackActive(true);
       } catch (error) {
         console.error('Error setting up audio loopback:', error);
-        alert(`Unable to start audio loopback: ${error.message}`);
+        alert(`Unable to start audio loopback: ${(error as Error).message}`);
       }
     } else {
       // If active, stop the loopback
       if (audioContextRef.current) {
-        audioContextRef.current.close();
+        if (typeof audioContextRef.current.close === 'function') {
+           audioContextRef.current.close();
+        }
         audioContextRef.current = null;
       }
       if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
+        if (typeof audioStreamRef.current.getTracks === 'function') {
+           audioStreamRef.current.getTracks().forEach(track => track.stop());
+        }
         audioStreamRef.current = null;
       }
       setIsAudioLoopbackActive(false);
@@ -371,10 +378,14 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   useEffect(() => {
     return () => {
       if (audioContextRef.current) {
-        audioContextRef.current.close();
+         if (typeof audioContextRef.current.close === 'function') {
+            audioContextRef.current.close();
+         }
       }
       if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
+         if (typeof audioStreamRef.current.getTracks === 'function') {
+            audioStreamRef.current.getTracks().forEach(track => track.stop());
+         }
       }
     };
   }, []);
@@ -428,28 +439,12 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     }
   }, [selectedPrompt]);
 
-  const handleClickShowAdvanced = prev => {
+  const handleClickShowAdvanced = () => {
     setShowAdvanced(prev => !prev);
   };
-  const handleClickShowDJMode = prev => {
+  const handleClickShowDJMode = () => {
     setShowDJMode(prev => !prev);
   };
-
-  useEffect(() => {
-    if (warp?.podStatus === 'PENDING') {
-      const interval = setInterval(() => {
-        setPodSetupProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 1;
-        });
-      }, 1400);
-
-      return () => clearInterval(interval);
-    }
-  }, [warp?.podStatus]);
 
   //startVideoStream
   useEffect(() => {
@@ -573,6 +568,11 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   useEffect(() => {
     const initializeWarp = async () => {
       console.log("Attempting to initialize warp...");
+      if (!getToken) {
+         console.error("Authentication function not available.");
+         setUiError("Authentication error. Please refresh.");
+         return;
+      }
       const token = await getToken();
       let responseJson;
       let responseOk = false;
@@ -621,7 +621,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         }
       } catch (error) {
          console.error('Error during warp initialization fetch:', error);
-         const errorMessage = responseJson?.message || error.message || 'Network error or failed to parse response.';
+         const errorMessage = responseJson?.message || (error as Error).message || 'Network error or failed to parse response.';
           setUiError(
             `Error initializing: ${errorMessage}. Contact support if the problem persists.`,
           );
@@ -881,7 +881,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   }
 
   useEffect(() => {
-    const handleEscKey = event => {
+    const handleEscKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isFullBrowser) {
         setIsFullBrowser(false);
       }
@@ -941,7 +941,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     [warp, prompt, postText, secondPrompt],
   );
 
-  const sendBlendRequest = value => {
+  const sendBlendRequest = (value: number) => {
     if (!warp?.workerId) {
       console.error('Cannot send blend request: workerId not available.');
       return;
@@ -965,15 +965,15 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       });
   };
 
-  const handleSliderChange = value => {
+  const handleSliderChange = (value: number) => {
     console.log('hsc1212', value);
     const now = Date.now();
     if (now - lastBlendSendTimeRef.current >= 24) {
       sendBlendRequest(value);
       lastBlendSendTimeRef.current = now;
     } else {
-      clearTimeout(blendTimeoutIdRef.current);
-      blendTimeoutIdRef.current = setTimeout(() => {
+      if (blendTimeoutIdRef.current !== null) window.clearTimeout(blendTimeoutIdRef.current);
+      blendTimeoutIdRef.current = window.setTimeout(() => {
         sendBlendRequest(value);
         lastBlendSendTimeRef.current = Date.now();
       }, 60);
@@ -981,10 +981,15 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   };
 
   useEffect(() => {
-    handleSliderChange(blendValue);
+    // Prevent calling handler on initial mount
+    if (isInitialBlendMount.current) {
+      isInitialBlendMount.current = false;
+    } else {
+      handleSliderChange(blendValue);
+    }
 
     return () => {
-      clearTimeout(blendTimeoutIdRef.current);
+      if (blendTimeoutIdRef.current !== null) window.clearTimeout(blendTimeoutIdRef.current);
     };
   }, [blendValue]);
 
@@ -995,6 +1000,11 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     }
 
     const endWarp = async () => {
+      if (!getToken) {
+         console.error("Authentication function not available.");
+         setUiError("Authentication error. Please refresh.");
+         return;
+       }
       const token = await getToken();
       const response = await fetch(
         createFullEndpoint(`warps/${warp?.id}/end`),
@@ -1065,7 +1075,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           dx,
           dy;
 
-        if (video) {
+        if (video instanceof HTMLVideoElement) {
           frame = video;
           croppedCanvas.width = FRAME_WIDTH;
           croppedCanvas.height = FRAME_HEIGHT;
@@ -1151,28 +1161,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     if (!document.fullscreenElement) {
       if (canvas.requestFullscreen) {
         canvas.requestFullscreen();
-      } else if (canvas.mozRequestFullScreen) {
-        // Firefox
-        canvas.mozRequestFullScreen();
-      } else if (canvas.webkitRequestFullscreen) {
-        // Chrome, Safari and Opera
-        canvas.webkitRequestFullscreen();
-      } else if (canvas.msRequestFullscreen) {
-        // IE/Edge
-        canvas.msRequestFullscreen();
       }
     } else {
       if (document.exitFullscreen) {
         document.exitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        // Firefox
-        document.mozCancelFullScreen();
-      } else if (document.webkitExitFullscreen) {
-        // Chrome, Safari and Opera
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) {
-        // IE/Edge
-        document.msExitFullscreen();
       }
     }
   };
@@ -1296,8 +1288,8 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   // Depend on the job status and worker ID being present
   }, [warp?.jobStatus, warp?.workerId, showWarningToast]); // Added showWarningToast
 
-  const handleFileSelect = event => {
-    const file = event.target.files[0];
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file && file.type.startsWith('video/')) {
       const url = URL.createObjectURL(file);
 
@@ -1342,7 +1334,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         </select>
 
         <select
-          onChange={e => setSelectedAudioDeviceId(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedAudioDeviceId(e.target.value)}
           className={`w-full p-3 mb-5 border border-[#4a4a4a] rounded-md text-base bg-[#1e1e1e] text-[#e0e0e0]${
             audioContextRef.current ? '' : ' hidden'
           }`}
@@ -1530,10 +1522,12 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
                 <button
                   onClick={() => {
                     const video = videoRef.current;
-                    if (video.paused) {
-                      video.play();
-                    } else {
-                      video.pause();
+                    if (video) {
+                      if (video.paused) {
+                        video.play();
+                      } else {
+                        video.pause();
+                      }
                     }
                   }}
                   className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0 mr-2"
@@ -1554,6 +1548,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           </div>
         )}
         {showDJMode && (
+          // @ts-ignore
           <MidiStuffPage
             sendPrompt={sendPrompt}
             prompt={prompt}
