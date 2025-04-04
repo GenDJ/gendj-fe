@@ -200,7 +200,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [isPollingWarpStatus, setIsPollingWarpStatus] = useState(false);
   const [isConnectingWebSocket, setIsConnectingWebSocket] = useState(false);
   const [hasWebSocketConnectedOnce, setHasWebSocketConnectedOnce] = useState(false);
+  const [isWarmingUp, setIsWarmingUp] = useState(false);
   const [currentStream, setCurrentStream] = useState<MediaStream | null>(null);
+  const [frameCount, setFrameCount] = useState(0);
 
   const [areWebcamPermissionsGranted, setAreWebcamPermissionsGranted] =
     useState(false);
@@ -648,6 +650,63 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
     checkWebcamPermissions();
   }, [isLoaded]); // Depend on isLoaded to ensure getToken is ready
+
+  // Helper function to create a blank black JPEG blob
+  const createBlankFrameBlob = (): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = FRAME_WIDTH;
+      canvas.height = FRAME_HEIGHT;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              // Fallback or error handling if blob creation fails
+              resolve(new Blob()); 
+            }
+          },
+          'image/jpeg',
+          0.8 // Quality setting
+        );
+      } else {
+         // Fallback or error handling if context fails
+         resolve(new Blob());
+      }
+    });
+  };
+
+  // Function to send multiple blank frames
+  const sendWarmupFrames = async (socket: WebSocket, count: number) => {
+    console.log(`Sending ${count} warmup frames...`);
+    const blankBlob = await createBlankFrameBlob();
+    if (blankBlob.size > 0) { 
+        for (let i = 0; i < count; i++) {
+            if (socket.readyState === WebSocket.OPEN) {
+                try {
+                   const buffer = await blankBlob.arrayBuffer();
+                   socket.send(buffer);
+                   console.log(`Sent warmup frame ${i + 1}/${count}`);
+                } catch (error) {
+                    console.error(`Error sending warmup frame ${i+1}:`, error);
+                    break; // Stop sending if one fails
+                }
+            } else {
+                console.warn(`WebSocket closed before sending warmup frame ${i + 1}.`);
+                break;
+            }
+            // Optional small delay between frames if needed
+            // await new Promise(resolve => setTimeout(resolve, 10)); 
+        }
+         console.log("Warmup frames sent.");
+    } else {
+        console.error("Failed to create blank frame blob for warmup.");
+    }
+  };
 
   // Polling Effect for Warp Status
   useEffect(() => {
@@ -1222,16 +1281,23 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
       newSocket.onopen = () => {
         console.log('WebSocket connection openeddd');
-        // Connection successful, clear connecting state
-        setIsConnectingWebSocket(false);
-        setHasWebSocketConnectedOnce(true);
+        // Don't set connecting false yet. Start warm-up.
+        // setIsConnectingWebSocket(false); 
+        // setHasWebSocketConnectedOnce(true); 
+        setIsWarmingUp(true); // Enter warm-up phase
+        
         if (currentToastRef.current) {
           toast.dismiss(currentToastRef.current);
+        }
+        
+        // Send warm-up frames
+        if (newSocket) { // Ensure socket exists
+           sendWarmupFrames(newSocket, 4);
         }
       };
 
       newSocket.onmessage = event => {
-        // console.log('gotframe1212');
+        // Process the received frame normally
         const blob = new Blob([event.data], { type: 'image/jpeg' });
         const url = URL.createObjectURL(blob);
 
@@ -1243,6 +1309,8 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             ...frameTimestampsRef.current,
             Date.now(),
           ];
+          // Increment frame count after successfully adding to queue
+          setFrameCount(prev => prev + 1);
         };
         img.src = url;
       };
@@ -1270,6 +1338,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           // Ensure connecting state is false if warp stops
           setIsConnectingWebSocket(false);
           setHasWebSocketConnectedOnce(false);
+          setIsWarmingUp(false); // Ensure warmup state is also reset
         }
       };
 
@@ -1315,9 +1384,22 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       // Clear connecting state on cleanup or if status changes
       setIsConnectingWebSocket(false);
       setHasWebSocketConnectedOnce(false);
+      setIsWarmingUp(false); // Ensure warmup state is also reset
     };
   // Depend on the job status and worker ID being present
   }, [warp?.jobStatus, warp?.workerId, showWarningToast]); // Added showWarningToast
+
+  // New Effect to finalize connection state after first frame is processed
+  useEffect(() => {
+    console.log("Frame count effect: Count:", frameCount, "Warming up:", isWarmingUp);
+    if (isWarmingUp && frameCount > 0) {
+      console.log("First frame processed during warm-up. Finalizing connection state.");
+      setIsWarmingUp(false);
+      setIsConnectingWebSocket(false);
+      setHasWebSocketConnectedOnce(true);
+    }
+    // We only want this to run when frameCount increases *during* warm-up
+  }, [frameCount, isWarmingUp]); 
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1337,7 +1419,8 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     <div className="bg-[#121212] text-[#e0e0e0] font-sans flex flex-col items-center px-5">
       {(warp?.jobStatus === 'IN_QUEUE' || isConnectingWebSocket) && warp?.jobStatus !== 'COMPLETED' && warp?.jobStatus !== 'FAILED' && warp?.jobStatus !== 'CANCELLED' && (
         <PendingModal
-          isConnecting={isConnectingWebSocket}
+          isConnecting={isConnectingWebSocket && !isWarmingUp}
+          isWarmingUp={isWarmingUp}
           handleClickEndWarp={handleClickEndWarp}
         />
       )}

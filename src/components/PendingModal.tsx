@@ -27,11 +27,19 @@ const Spinner = () => (
 const PendingModal: React.FC<{
   handleClickEndWarp: () => void;
   isConnecting: boolean;
-}> = ({ handleClickEndWarp, isConnecting }) => {
-  const title = isConnecting ? 'Connecting to Warp...' : 'Warming Up Warp Engine...';
-  const mainMessage = isConnecting
-    ? 'Almost there! Establishing connection...'
-    : 'Preparing your warp... (Usually under a minute)';
+  isWarmingUp: boolean;
+}> = ({ handleClickEndWarp, isConnecting, isWarmingUp }) => {
+  // Determine title and message based on state
+  let title = 'Requesting to reserve a warping server for you...';
+  let mainMessage = 'Your request is in the queue... can take 5 to 90 seconds';
+
+  if (isWarmingUp) {
+    title = 'Connecting to warping server...';
+    mainMessage = 'Almost there! Establishing connection...';
+  } else if (isConnecting) {
+    title = 'Warping server assigned...';
+    mainMessage = 'Waiting for warping server to boot up...';
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
@@ -39,11 +47,14 @@ const PendingModal: React.FC<{
         <h2 className="text-xl sm:text-2xl font-bold mb-4 text-blue-400">
           {title}
         </h2>
-        
+
         <Spinner />
 
-        <p className="text-md sm:text-lg mb-6 text-gray-300">
-          {mainMessage}
+        <p className="text-md sm:text-lg mb-6 text-gray-300">{mainMessage}</p>
+
+        <p className="text-md sm:text-md mb-6 text-gray-500">
+          Total startup time usually 1-3 minutes. Startup time does not count
+          against your warp time.
         </p>
 
         <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
