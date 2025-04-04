@@ -171,6 +171,108 @@ const dropFrameStrategies: Record<string, (frameCounter: number) => boolean> = {
   '5': dropFrame(5),
 };
 
+// --- NEW: Warp Ended Modal Component --- 
+const discordLink = 'https://discord.gg/CQfEpE76s5';
+const shareUrl = 'https://gendj.com'; // Ensure this is the correct URL
+const shareText = 'I warped myself with AI in real time on GenDJ.com #GenDJ';
+
+interface WarpEndedModalProps {
+  onClose: () => void;
+}
+
+const WarpEndedModal: React.FC<WarpEndedModalProps> = ({ onClose }) => {
+
+  // Generate share URLs
+  const encodedUrl = encodeURIComponent(shareUrl);
+  const encodedText = encodeURIComponent(shareText);
+
+  const shareTargets = [
+    {
+      name: 'X (Twitter)',
+      url: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
+      // Basic text button style
+      className: 'bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded inline-flex items-center',
+    },
+    {
+      name: 'Facebook',
+      url: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,
+      className: 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center',
+    },
+    {
+      name: 'Reddit',
+      url: `https://www.reddit.com/submit?url=${encodedUrl}&title=${encodedText}`,
+      className: 'bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded inline-flex items-center',
+    },
+    {
+      name: 'Email',
+      url: `mailto:?subject=${encodeURIComponent("Check out GenDJ!")}&body=${encodedText}%0A%0ACheck it out: ${encodedUrl}`,
+      className: 'bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded inline-flex items-center',
+    }
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div className="bg-gradient-to-b from-gray-800 to-gray-900 text-gray-100 p-6 sm:p-8 rounded-xl shadow-2xl max-w-lg w-full border border-gray-700 text-center">
+        <h2 className="text-xl sm:text-2xl font-bold mb-4 text-green-400">
+          Warp Session Ended
+        </h2>
+        
+        <p className="text-md sm:text-lg mb-6 text-gray-300">
+          Your warp session has successfully concluded. Thanks for using GenDJ!
+        </p>
+
+        {/* Share Section */}
+        <p className="text-md font-semibold mb-4 text-blue-300">
+          Spread the word!
+        </p>
+        <div className="flex flex-wrap justify-center gap-3 mb-6">
+          {shareTargets.map(target => (
+            <a
+              key={target.name}
+              href={target.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={target.className}
+            >
+              {/* Optional: Add SVG icons here later if desired */}
+              <span>Share on {target.name}</span>
+            </a>
+          ))}
+        </div>
+
+        {/* Discord Section */}
+        <div className="border-t border-gray-700 my-6 pt-6">
+           <p className="text-md font-semibold mb-4 text-blue-300">
+              Join the Community:
+           </p>
+           <a
+              href={discordLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded"
+            >
+               {/* Basic Discord SVG Icon */}
+               <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg"><path d="m107.7,8.07c-4.24-1.44-8.67-2.6-13.15-3.66-0.44-0.12-0.89-0.18-1.34-0.18-4.68,0.44-9.21,1.78-13.59,3.99-1.49,0.74-2.94,1.56-4.32,2.46-3.78,2.49-7.1,5.31-9.91,8.44-2.79-3.13-6.11-5.95-9.91-8.44-1.38-0.9-2.84-1.72-4.32-2.46-4.38-2.21-8.91-3.55-13.59-3.99-0.45,0-0.9,0.06-1.34,0.18-4.47,1.06-8.91,2.22-13.15,3.66-0.2,0.06-0.38,0.14-0.55,0.23-17.44,9.8-24.85,26.17-25.66,44.53-0.02,0.33-0.03,0.67-0.03,1.01,0,15.7,9.01,29.5,22.07,36.61,0.2,0.11,0.4,0.2,0.61,0.29,5.93,2.58,12.06,4.54,18.31,5.81,0.29,0.06,0.57,0.1,0.86,0.13,2.58,0.26,5.17,0.41,7.78,0.41,9.15,0,18.06-1.17,26.59-3.41,0.28-0.07,0.55-0.15,0.82-0.24,3.02-1.02,6-2.14,8.88-3.39,0.23-0.1,0.45-0.21,0.67-0.32,8.87-4.25,16.3-10.44,21.95-18.06,0.11-0.15,0.21-0.3,0.31-0.45,0.71-1.11,1.38-2.25,1.99-3.44,0.28-0.55,0.54-1.11,0.79-1.68,0.08-0.18,0.15-0.37,0.22-0.55,6.73-16.57,7.39-34.31-3.42-49.92-0.01-0.02-0.01-0.03-0.02-0.05zm-24.56,47.59c-3.33,0-6.03-2.7-6.03-6.03s2.7-6.03,6.03-6.03,6.03,2.7,6.03,6.03c0,3.33-2.7,6.03-6.03,6.03zm-32.51,0c-3.33,0-6.03-2.7-6.03-6.03s2.7-6.03,6.03-6.03,6.03,2.7,6.03,6.03c0,3.33-2.7,6.03-6.03,6.03z"/></svg>
+              <span>Join Discord</span>
+           </a>
+        </div>
+
+        {/* Close Button */}
+        <div className="border-t border-gray-700 mt-6 pt-6">
+           <button
+             onClick={onClose}
+             className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-md cursor-pointer transition-all duration-300"
+           >
+             Close
+           </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+// --- End Warp Ended Modal --- 
+
 const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const { getToken, isLoaded } = useConditionalAuth();
 
@@ -236,9 +338,12 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   // Ref to track initial mount for blendValue effect
   const isInitialBlendMount = useRef(true);
 
-  const [isInitialWarpingLoading, setIsInitialWarpingLoading] = useState(false); // State for button loading
-  const [hasClickedStartWarping, setHasClickedStartWarping] = useState(false); // Track first click
-  const [, forceUpdate] = useState({}); // Simple state for forcing updates
+  const [isInitialWarpingLoading, setIsInitialWarpingLoading] = useState(false);
+  const [hasClickedStartWarping, setHasClickedStartWarping] = useState(false);
+  const [wasWarpInitiallyInProgress, setWasWarpInitiallyInProgress] = useState(false);
+  const [, forceUpdate] = useState({});
+
+  const [showWarpEndedModal, setShowWarpEndedModal] = useState(false); // Add state for the new modal
 
   // useEffect(() => {
   //   console.log('first prompt changed1212', prompt);
@@ -615,6 +720,8 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
               setIsPollingWarpStatus(true);
             } else {
                console.log(`Warp status is already ${initialWarpData.jobStatus}.`);
+               // Mark that it was initially ready
+               setWasWarpInitiallyInProgress(true);
             }
           } else {
             console.error('Initialization response missing id or jobId:', initialWarpData);
@@ -1074,28 +1181,39 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
          return;
        }
       const token = await getToken();
-      const response = await fetch(
-        createFullEndpoint(`warps/${warp?.id}/end`),
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            credentials: 'include',
-          },
-        },
-      );
+      try {
+         const response = await fetch(
+           createFullEndpoint(`warps/${warp?.id}/end`),
+           {
+             method: 'POST',
+             headers: {
+               Authorization: `Bearer ${token}`,
+               credentials: 'include',
+             },
+           },
+         );
 
-      const { entities } = await response.json();
-
-      const updatedWarp = entities?.warps?.[0];
-      console.log('settingendedwarp1212', updatedWarp);
-      setWarp(updatedWarp);
+         if (response.ok) {
+            const { entities } = await response.json();
+            const updatedWarp = entities?.warps?.[0];
+            console.log('settingendedwarp1212', updatedWarp);
+            setWarp(updatedWarp); // Update local warp state
+            setShowWarpEndedModal(true); // Show the modal on success
+         } else {
+            // Handle non-OK response from end warp endpoint
+            console.error('Failed to end warp:', response.status, await response.text());
+            setUiError('Failed to stop the warp session. Please try again or contact support.');
+         }
+      } catch (error) {
+         console.error('Error calling end warp endpoint:', error);
+         setUiError('An error occurred while trying to stop the warp session.');
+      }
     };
 
     if (confirm('Are you sure you want to end the warp?')) {
       endWarp();
     }
-  }, [warp?.id]);
+  }, [warp?.id, getToken]); // Include getToken in dependencies
 
   //sendframes
   useEffect(() => {
@@ -1285,18 +1403,24 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
       newSocket.onopen = () => {
         console.log('WebSocket connection openeddd');
-        // Don't set connecting false yet. Start warm-up.
-        // setIsConnectingWebSocket(false); 
-        // setHasWebSocketConnectedOnce(true); 
-        setIsWarmingUp(true); // Enter warm-up phase
-        
         if (currentToastRef.current) {
           toast.dismiss(currentToastRef.current);
         }
-        
-        // Send warm-up frames
-        if (newSocket) { // Ensure socket exists
-           sendWarmupFrames(newSocket, 4);
+
+        // Check if warm-up is needed
+        if (wasWarpInitiallyInProgress) {
+           console.log("Warp was initially IN_PROGRESS. Skipping warm-up frames.");
+           // Connect immediately, no warm-up phase
+           setIsConnectingWebSocket(false);
+           setHasWebSocketConnectedOnce(true);
+           setIsWarmingUp(false); // Ensure warming up state is false
+        } else {
+           console.log("Warp started during this session. Starting warm-up frames.");
+           // Start warm-up phase
+           setIsWarmingUp(true);
+           if (newSocket) { 
+             sendWarmupFrames(newSocket, 4);
+           }
         }
       };
 
@@ -1342,7 +1466,11 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           // Ensure connecting state is false if warp stops
           setIsConnectingWebSocket(false);
           setHasWebSocketConnectedOnce(false);
-          setIsWarmingUp(false); // Ensure warmup state is also reset
+          setIsWarmingUp(false); 
+          setWasWarpInitiallyInProgress(false); // Reset initial state tracker on cleanup
+          if (initialConnectTimeout) {
+            clearTimeout(initialConnectTimeout);
+          }
         }
       };
 
@@ -1357,15 +1485,22 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       console.log('settingCurrentSocket1212');
     };
 
-    // Initiate connection if conditions are met, but with an initial delay
-    console.log('Conditions met for WebSocket. Scheduling initial connection attempt...');
-    // Clear any existing initial timeout before setting a new one
-    if (initialConnectTimeout) clearTimeout(initialConnectTimeout);
-    
-    initialConnectTimeout = setTimeout(() => {
-        console.log('Initial delay complete. Attempting first WebSocket connection...');
-        connectWebSocket();
-    }, 3000); // 3-second initial delay
+    // Initiate connection conditionally
+    if (wasWarpInitiallyInProgress) {
+       // If warp was already running, connect immediately
+       console.log("Warp was initially IN_PROGRESS. Attempting immediate WebSocket connection...");
+       connectWebSocket();
+    } else {
+      // If warp started during this session, add initial delay
+      console.log('Warp started this session. Scheduling initial connection attempt with delay...');
+      // Clear any existing initial timeout before setting a new one
+      if (initialConnectTimeout) clearTimeout(initialConnectTimeout);
+      
+      initialConnectTimeout = setTimeout(() => {
+          console.log('Initial delay complete. Attempting first WebSocket connection...');
+          connectWebSocket();
+      }, 3000); // 3-second initial delay
+    }
 
     // Cleanup function
     return () => {
@@ -1388,7 +1523,8 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       // Clear connecting state on cleanup or if status changes
       setIsConnectingWebSocket(false);
       setHasWebSocketConnectedOnce(false);
-      setIsWarmingUp(false); // Ensure warmup state is also reset
+      setIsWarmingUp(false); 
+      setWasWarpInitiallyInProgress(false); // Reset initial state tracker on cleanup
     };
   // Depend on the job status and worker ID being present
   }, [warp?.jobStatus, warp?.workerId, showWarningToast]); // Added showWarningToast
@@ -1438,6 +1574,9 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           isWarmingUp={isWarmingUp}
           handleClickEndWarp={handleClickEndWarp}
         />
+      )}
+      {showWarpEndedModal && (
+         <WarpEndedModal onClose={() => setShowWarpEndedModal(false)} />
       )}
       <h2 className="w-full text-sm sm:text-lg font-bold my-2 text-blue-400 text-center">
         Time remaining:{' '}
@@ -1530,24 +1669,22 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             onClick={() => {
               const shouldStartWarping = !isStreamingRef.current;
               if (shouldStartWarping) {
-                 // Check if it's the first time starting
-                 if (!hasClickedStartWarping) {
-                    console.log("First Start Warping click. Adding 7s delay...");
+                // Start streaming immediately
+                console.log("Start Warping click - setting isStreamingRef true");
+                isStreamingRef.current = true;
+ 
+                // Check if it's the first time starting AND required initialization
+                if (!hasClickedStartWarping && !wasWarpInitiallyInProgress) {
+                    console.log("First Start Warping click after init. Showing visual loading...");
                     setHasClickedStartWarping(true);
                     setIsInitialWarpingLoading(true);
-                    // Start streaming after delay
+                    // Only use timeout to turn *off* the visual loading state
                     setTimeout(() => {
-                      console.log("Initial 7s delay complete. Starting streaming.");
-                      isStreamingRef.current = true;
+                      console.log("Visual loading period complete.");
                       setIsInitialWarpingLoading(false);
-                      forceUpdate({}); // Force re-render to update button text
-                    }, 7000); 
-                 } else {
-                    // Not the first time, start immediately
-                    console.log("Subsequent Start Warping click. Starting immediately.");
-                    isStreamingRef.current = true;
-                    forceUpdate({}); // Force re-render
-                 }
+                    }, 5000); // Show loading for 5 seconds 
+                }
+                forceUpdate({}); // Force re-render to update button text
               } else {
                  // Clicking to stop
                  console.log("Stop Warping click.");
@@ -1557,13 +1694,13 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
               }
             }}
             className={`text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:-translate-y-0.5 active:translate-y-0 ${
-              isInitialWarpingLoading
-                ? 'bg-gray-500 opacity-75 cursor-not-allowed' 
-                : warp?.jobStatus !== 'IN_PROGRESS'
-                ? 'bg-gray-500 opacity-50 cursor-not-allowed'
-                : 'bg-[#4a90e2] hover:bg-[#3a7bd5]' 
+              warp?.jobStatus !== 'IN_PROGRESS'
+                ? 'bg-gray-500 opacity-50 cursor-not-allowed' // Disabled state
+                : isStreamingRef.current
+                ? 'bg-gray-600 hover:bg-gray-700' // Stop button state
+                : 'bg-[#4a90e2] hover:bg-[#3a7bd5]' // Start button state
             }`}
-            disabled={warp?.jobStatus !== 'IN_PROGRESS' || isInitialWarpingLoading}
+            disabled={warp?.jobStatus !== 'IN_PROGRESS'}
           >
              {/* Conditional content: Spinner or Text */} 
             {isInitialWarpingLoading ? (
