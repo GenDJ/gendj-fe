@@ -236,6 +236,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   // Ref to track initial mount for blendValue effect
   const isInitialBlendMount = useRef(true);
 
+  const [isInitialWarpingLoading, setIsInitialWarpingLoading] = useState(false); // State for button loading
+  const [hasClickedStartWarping, setHasClickedStartWarping] = useState(false); // Track first click
+  const [, forceUpdate] = useState({}); // Simple state for forcing updates
+
   // useEffect(() => {
   //   console.log('first prompt changed1212', prompt);
   // }, [prompt]);
@@ -1391,9 +1395,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
   // New Effect to finalize connection state after first frame is processed
   useEffect(() => {
-    console.log("Frame count effect: Count:", frameCount, "Warming up:", isWarmingUp);
     if (isWarmingUp && frameCount > 0) {
-      console.log("First frame processed during warm-up. Finalizing connection state.");
       setIsWarmingUp(false);
       setIsConnectingWebSocket(false);
       setHasWebSocketConnectedOnce(true);
@@ -1414,6 +1416,19 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     setVideoSrc(null);
     videoRef.current = null;
   };
+
+  // Small inline spinner for the button
+  const ButtonSpinner = () => (
+    <svg
+      className="animate-spin h-4 w-4 text-white mx-auto"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+  );
 
   return (
     <div className="bg-[#121212] text-[#e0e0e0] font-sans flex flex-col items-center px-5">
@@ -1513,14 +1528,54 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           </button>
           <button
             onClick={() => {
-              isStreamingRef.current = !isStreamingRef.current;
+              const shouldStartWarping = !isStreamingRef.current;
+              if (shouldStartWarping) {
+                 // Check if it's the first time starting
+                 if (!hasClickedStartWarping) {
+                    console.log("First Start Warping click. Adding 7s delay...");
+                    setHasClickedStartWarping(true);
+                    setIsInitialWarpingLoading(true);
+                    // Start streaming after delay
+                    setTimeout(() => {
+                      console.log("Initial 7s delay complete. Starting streaming.");
+                      isStreamingRef.current = true;
+                      setIsInitialWarpingLoading(false);
+                      forceUpdate({}); // Force re-render to update button text
+                    }, 7000); 
+                 } else {
+                    // Not the first time, start immediately
+                    console.log("Subsequent Start Warping click. Starting immediately.");
+                    isStreamingRef.current = true;
+                    forceUpdate({}); // Force re-render
+                 }
+              } else {
+                 // Clicking to stop
+                 console.log("Stop Warping click.");
+                 isStreamingRef.current = false;
+                 setIsInitialWarpingLoading(false); // Ensure loading stops if cancelled
+                 forceUpdate({}); // Force re-render
+              }
             }}
-            className={`bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0 ${
-              warp?.jobStatus !== 'IN_PROGRESS' ? 'opacity-50 cursor-not-allowed' : ''
+            className={`text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:-translate-y-0.5 active:translate-y-0 ${
+              isInitialWarpingLoading
+                ? 'bg-gray-500 opacity-75 cursor-not-allowed' 
+                : warp?.jobStatus !== 'IN_PROGRESS'
+                ? 'bg-gray-500 opacity-50 cursor-not-allowed'
+                : 'bg-[#4a90e2] hover:bg-[#3a7bd5]' 
             }`}
-            disabled={warp?.jobStatus !== 'IN_PROGRESS'}
+            disabled={warp?.jobStatus !== 'IN_PROGRESS' || isInitialWarpingLoading}
           >
-            {isStreamingRef.current ? 'Stop' : 'Start'} Warping
+             {/* Conditional content: Spinner or Text */} 
+            {isInitialWarpingLoading ? (
+              <span className="flex items-center justify-center">
+                 <ButtonSpinner />
+                 <span className="ml-2">Initializing warp...</span>
+              </span>
+            ) : isStreamingRef.current ? (
+              'Stop Warping'
+            ) : (
+              'Start Warping'
+            )}
           </button>
 
           <button
