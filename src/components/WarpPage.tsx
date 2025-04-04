@@ -10,6 +10,22 @@ import 'image-capture';
 
 import 'react-toastify/dist/ReactToastify.css';
 
+// Define Warp interface based on new structure
+interface Warp {
+  id: string;
+  jobId: string;
+  jobStatus: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | string; // Allow string for potential other statuses
+  jobRequestedAt?: string; // Assuming ISO string format
+  jobStartedAt?: string; // Assuming ISO string format
+  jobEndedAt?: string; // Assuming ISO string format
+  workerId?: string;
+  estimatedUserTimeBalance?: number;
+  // Keep old fields potentially for historical data, but mark as optional/deprecated if needed
+  podId?: string;
+  podStatus?: string;
+  // ... any other potential old fields
+}
+
 const FRAME_WIDTH = 512;
 const FRAME_HEIGHT = 512;
 const FRAME_RATE = 30;
@@ -20,18 +36,21 @@ interface Option {
   label: string;
 }
 
-const buildWebsocketUrlFromPodId = (podId: string) => {
+// Rename and update URL builders
+const buildWebsocketUrl = (workerId?: string) => {
+  if (!workerId) return null; // Cannot build URL without workerId
   if (IS_WARP_LOCAL) {
     return `ws://localhost:8765`;
   } else {
-    return `wss://${podId}-8766.proxy.runpod.net`;
+    return `wss://${workerId}-8765.proxy.runpod.net`;
   }
 };
 
-const buildPromptEndpointUrlFromPodId = (
-  podId: string,
+const buildPromptEndpointUrl = (
+  workerId?: string,
   promptIndex: number = 1,
 ) => {
+  if (!workerId) return null; // Cannot build URL without workerId
   if (IS_WARP_LOCAL) {
     if (promptIndex === 1) {
       return `http://localhost:5556/prompt/`;
@@ -40,18 +59,19 @@ const buildPromptEndpointUrlFromPodId = (
     }
   } else {
     if (promptIndex === 1) {
-      return `https://${podId}-5556.proxy.runpod.net/prompt/`;
+      return `https://${workerId}-5556.proxy.runpod.net/prompt/`;
     } else {
-      return `https://${podId}-5556.proxy.runpod.net/secondprompt/`;
+      return `https://${workerId}-5556.proxy.runpod.net/secondprompt/`;
     }
   }
 };
 
-const buildBlendEndpointUrlFromPodId = (podId: string) => {
+const buildBlendEndpointUrl = (workerId?: string) => {
+  if (!workerId) return null; // Cannot build URL without workerId
   if (IS_WARP_LOCAL) {
     return `http://localhost:5556/blend/`;
   } else {
-    return `https://${podId}-5556.proxy.runpod.net/blend/`;
+    return `https://${workerId}-5556.proxy.runpod.net/blend/`;
   }
 };
 
@@ -151,14 +171,116 @@ const dropFrameStrategies: Record<string, (frameCounter: number) => boolean> = {
   '5': dropFrame(5),
 };
 
+// --- NEW: Warp Ended Modal Component --- 
+const discordLink = 'https://discord.gg/CQfEpE76s5';
+const shareUrl = 'https://gendj.com'; // Ensure this is the correct URL
+const shareText = 'I warped myself with AI in real time on GenDJ.com #GenDJ';
+
+interface WarpEndedModalProps {
+  onClose: () => void;
+}
+
+const WarpEndedModal: React.FC<WarpEndedModalProps> = ({ onClose }) => {
+
+  // Generate share URLs
+  const encodedUrl = encodeURIComponent(shareUrl);
+  const encodedText = encodeURIComponent(shareText);
+
+  const shareTargets = [
+    {
+      name: 'X (Twitter)',
+      url: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
+      // Basic text button style
+      className: 'bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded inline-flex items-center',
+    },
+    {
+      name: 'Facebook',
+      url: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,
+      className: 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center',
+    },
+    {
+      name: 'Reddit',
+      url: `https://www.reddit.com/submit?url=${encodedUrl}&title=${encodedText}`,
+      className: 'bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded inline-flex items-center',
+    },
+    {
+      name: 'Email',
+      url: `mailto:?subject=${encodeURIComponent("Check out GenDJ!")}&body=${encodedText}%0A%0ACheck it out: ${encodedUrl}`,
+      className: 'bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded inline-flex items-center',
+    }
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div className="bg-gradient-to-b from-gray-800 to-gray-900 text-gray-100 p-6 sm:p-8 rounded-xl shadow-2xl max-w-lg w-full border border-gray-700 text-center">
+        <h2 className="text-xl sm:text-2xl font-bold mb-4 text-green-400">
+          Warp Session Ended
+        </h2>
+        
+        <p className="text-md sm:text-lg mb-6 text-gray-300">
+          Your warp session has successfully concluded. Thanks for using GenDJ!
+        </p>
+
+        {/* Share Section */}
+        <p className="text-md font-semibold mb-4 text-blue-300">
+          Spread the word!
+        </p>
+        <div className="flex flex-wrap justify-center gap-3 mb-6">
+          {shareTargets.map(target => (
+            <a
+              key={target.name}
+              href={target.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={target.className}
+            >
+              {/* Optional: Add SVG icons here later if desired */}
+              <span>Share on {target.name}</span>
+            </a>
+          ))}
+        </div>
+
+        {/* Discord Section */}
+        <div className="border-t border-gray-700 my-6 pt-6">
+           <p className="text-md font-semibold mb-4 text-blue-300">
+              Join the Community:
+           </p>
+           <a
+              href={discordLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded"
+            >
+               {/* Basic Discord SVG Icon */}
+               <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg"><path d="m107.7,8.07c-4.24-1.44-8.67-2.6-13.15-3.66-0.44-0.12-0.89-0.18-1.34-0.18-4.68,0.44-9.21,1.78-13.59,3.99-1.49,0.74-2.94,1.56-4.32,2.46-3.78,2.49-7.1,5.31-9.91,8.44-2.79-3.13-6.11-5.95-9.91-8.44-1.38-0.9-2.84-1.72-4.32-2.46-4.38-2.21-8.91-3.55-13.59-3.99-0.45,0-0.9,0.06-1.34,0.18-4.47,1.06-8.91,2.22-13.15,3.66-0.2,0.06-0.38,0.14-0.55,0.23-17.44,9.8-24.85,26.17-25.66,44.53-0.02,0.33-0.03,0.67-0.03,1.01,0,15.7,9.01,29.5,22.07,36.61,0.2,0.11,0.4,0.2,0.61,0.29,5.93,2.58,12.06,4.54,18.31,5.81,0.29,0.06,0.57,0.1,0.86,0.13,2.58,0.26,5.17,0.41,7.78,0.41,9.15,0,18.06-1.17,26.59-3.41,0.28-0.07,0.55-0.15,0.82-0.24,3.02-1.02,6-2.14,8.88-3.39,0.23-0.1,0.45-0.21,0.67-0.32,8.87-4.25,16.3-10.44,21.95-18.06,0.11-0.15,0.21-0.3,0.31-0.45,0.71-1.11,1.38-2.25,1.99-3.44,0.28-0.55,0.54-1.11,0.79-1.68,0.08-0.18,0.15-0.37,0.22-0.55,6.73-16.57,7.39-34.31-3.42-49.92-0.01-0.02-0.01-0.03-0.02-0.05zm-24.56,47.59c-3.33,0-6.03-2.7-6.03-6.03s2.7-6.03,6.03-6.03,6.03,2.7,6.03,6.03c0,3.33-2.7,6.03-6.03,6.03zm-32.51,0c-3.33,0-6.03-2.7-6.03-6.03s2.7-6.03,6.03-6.03,6.03,2.7,6.03,6.03c0,3.33-2.7,6.03-6.03,6.03z"/></svg>
+              <span>Join Discord</span>
+           </a>
+        </div>
+
+        {/* Close Button */}
+        <div className="border-t border-gray-700 mt-6 pt-6">
+           <button
+             onClick={onClose}
+             className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-md cursor-pointer transition-all duration-300"
+           >
+             Close
+           </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+// --- End Warp Ended Modal --- 
+
 const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const { getToken, isLoaded } = useConditionalAuth();
 
-  const videoRef = useRef(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
 
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-  const [devices, setDevices] = useState([]);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [prompt, setPrompt] = useState(
     'illustration of a dj sunglasses disco colors vibrant digital illustration HDR talking',
   );
@@ -173,12 +295,16 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showDJMode, setShowDJMode] = useState(false);
   const [isRenderSmooth, setIsRenderSmooth] = useState(false);
-  const [dropEvery, setDropEvery] = useState();
+  const [dropEvery, setDropEvery] = useState<string>('none');
 
   const [calculatedFps, setcalculatedFps] = useState(0);
-  const [warp, setWarp] = useState<any>(null);
+  const [warp, setWarp] = useState<Warp | null>(null);
+  const [isPollingWarpStatus, setIsPollingWarpStatus] = useState(false);
+  const [isConnectingWebSocket, setIsConnectingWebSocket] = useState(false);
+  const [hasWebSocketConnectedOnce, setHasWebSocketConnectedOnce] = useState(false);
+  const [isWarmingUp, setIsWarmingUp] = useState(false);
   const [currentStream, setCurrentStream] = useState<MediaStream | null>(null);
-  const [podSetupProgress, setPodSetupProgress] = useState(1);
+  const [frameCount, setFrameCount] = useState(0);
 
   const [areWebcamPermissionsGranted, setAreWebcamPermissionsGranted] =
     useState(false);
@@ -198,16 +324,26 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const frameQueueRef = useRef<HTMLImageElement[]>([]);
   const frameTimestampsRef = useRef<number[]>([]);
   const isStreamingRef = useRef(false);
-  const [audioDevices, setAudioDevices] = useState([]);
-  const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState(null);
-  const audioContextRef = useRef(null);
-  const audioStreamRef = useRef(null);
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
 
   const lastBlendSendTimeRef = useRef(0);
-  const blendTimeoutIdRef = useRef(null);
+  const blendTimeoutIdRef = useRef<number | null>(null);
 
   const [isAudioLoopbackSupported, setIsAudioLoopbackSupported] =
     useState(true);
+
+  // Ref to track initial mount for blendValue effect
+  const isInitialBlendMount = useRef(true);
+
+  const [isInitialWarpingLoading, setIsInitialWarpingLoading] = useState(false);
+  const [hasClickedStartWarping, setHasClickedStartWarping] = useState(false);
+  const [wasWarpInitiallyInProgress, setWasWarpInitiallyInProgress] = useState(false);
+  const [, forceUpdate] = useState({});
+
+  const [showWarpEndedModal, setShowWarpEndedModal] = useState(false); // Add state for the new modal
 
   // useEffect(() => {
   //   console.log('first prompt changed1212', prompt);
@@ -257,7 +393,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       }
 
       // Check if AudioContext is supported
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const AudioContext = window.AudioContext;
       if (!AudioContext) {
         return false;
       }
@@ -319,7 +455,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         });
         audioStreamRef.current = stream;
 
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const AudioContext = window.AudioContext;
         if (!AudioContext) {
           throw new Error('AudioContext is not supported in this browser');
         }
@@ -332,16 +468,20 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         setIsAudioLoopbackActive(true);
       } catch (error) {
         console.error('Error setting up audio loopback:', error);
-        alert(`Unable to start audio loopback: ${error.message}`);
+        alert(`Unable to start audio loopback: ${(error as Error).message}`);
       }
     } else {
       // If active, stop the loopback
       if (audioContextRef.current) {
-        audioContextRef.current.close();
+        if (typeof audioContextRef.current.close === 'function') {
+           audioContextRef.current.close();
+        }
         audioContextRef.current = null;
       }
       if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
+        if (typeof audioStreamRef.current.getTracks === 'function') {
+           audioStreamRef.current.getTracks().forEach(track => track.stop());
+        }
         audioStreamRef.current = null;
       }
       setIsAudioLoopbackActive(false);
@@ -351,10 +491,14 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   useEffect(() => {
     return () => {
       if (audioContextRef.current) {
-        audioContextRef.current.close();
+         if (typeof audioContextRef.current.close === 'function') {
+            audioContextRef.current.close();
+         }
       }
       if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
+         if (typeof audioStreamRef.current.getTracks === 'function') {
+            audioStreamRef.current.getTracks().forEach(track => track.stop());
+         }
       }
     };
   }, []);
@@ -408,28 +552,12 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     }
   }, [selectedPrompt]);
 
-  const handleClickShowAdvanced = prev => {
+  const handleClickShowAdvanced = () => {
     setShowAdvanced(prev => !prev);
   };
-  const handleClickShowDJMode = prev => {
+  const handleClickShowDJMode = () => {
     setShowDJMode(prev => !prev);
   };
-
-  useEffect(() => {
-    if (warp?.podStatus === 'PENDING') {
-      const interval = setInterval(() => {
-        setPodSetupProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 1;
-        });
-      }, 1400);
-
-      return () => clearInterval(interval);
-    }
-  }, [warp?.podStatus]);
 
   //startVideoStream
   useEffect(() => {
@@ -474,111 +602,326 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     }
   }, [uiError]);
 
+  // Heartbeat Effect
   useEffect(() => {
-    if (warp?.podStatus !== 'RUNNING') return;
+    let heartbeatInterval: NodeJS.Timeout | null = null;
 
     const sendHeartbeat = async () => {
-      if (IS_WARP_LOCAL) {
+      if (IS_WARP_LOCAL || !warp?.id || !getToken) {
         return;
       }
+
+      console.log("Sending heartbeat...");
       try {
         const token = await getToken();
         const response = await fetch(
           createFullEndpoint(`warps/${warp.id}/heartbeat`),
           {
             method: 'POST',
-            body: '{}',
+            // body: '{}', // Empty body is often implicit for POST, check if backend requires it
             headers: {
               Authorization: `Bearer ${token}`,
               credentials: 'include',
+              'Content-Type': 'application/json', // Explicitly set Content-Type
             },
           },
         );
 
         if (response.ok) {
           const { estimatedUserTimeBalance } = await response.json();
-
-          if (estimatedUserTimeBalance) {
+          console.log("Heartbeat OK, time balance:", estimatedUserTimeBalance);
+          if (estimatedUserTimeBalance !== undefined) { // Check for undefined, 0 is valid
             setCalcualatedTimeRemaining(estimatedUserTimeBalance);
           }
+        } else if (response.status === 402) {
+          console.warn('Heartbeat failed: 402 Payment Required (Out of Time)');
+           setUiError('Your warp time has run out. The session has been stopped.');
+           // Stop polling if it's somehow still active
+           setIsPollingWarpStatus(false);
+           // Update warp state to reflect it likely ended/cancelled
+           // The exact status might come from the response body or we assume 'CANCELLED' / 'FAILED'
+           setWarp(prevWarp => prevWarp ? { ...prevWarp, jobStatus: 'CANCELLED' } : null);
+            // Close WebSocket connection
+            if (socketRef.current) {
+               console.log('Closing WebSocket due to out of time.');
+               socketRef.current.close();
+            }
+            // Stop sending heartbeats
+           if (heartbeatInterval) clearInterval(heartbeatInterval);
         } else {
-          console.error('Failed to send heartbeat');
+          console.error(`Heartbeat failed with status: ${response.status}`);
+          // Handle other errors? Maybe stop heartbeat after repeated failures?
         }
       } catch (error) {
-        console.error('Error sending heartbeat:', error);
+        console.error('Error sending heartbeat fetch request:', error);
+        // Handle fetch errors
       }
     };
 
-    const heartbeatInterval = setInterval(sendHeartbeat, 10000); // 10 seconds
+    // Only run heartbeat when the warp is active
+    if (warp?.jobStatus === 'IN_PROGRESS') {
+      console.log('Warp IN_PROGRESS, starting heartbeat.');
+      // Send immediate heartbeat, then set interval
+      sendHeartbeat();
+      heartbeatInterval = setInterval(sendHeartbeat, 30000); // Send every 30 seconds
+    } else {
+       console.log('Warp not IN_PROGRESS, stopping heartbeat.');
+    }
 
     // Cleanup function
     return () => {
-      clearInterval(heartbeatInterval);
+      if (heartbeatInterval) {
+        console.log('Clearing heartbeat interval.');
+        clearInterval(heartbeatInterval);
+      }
     };
-  }, [warp?.podStatus]);
+  // Depend on the status that indicates the warp is active and the warp ID
+  }, [warp?.jobStatus, warp?.id, getToken]);
 
   useEffect(() => {
     const initializeWarp = async () => {
+      console.log("Attempting to initialize warp...");
+      if (!getToken) {
+         console.error("Authentication function not available.");
+         setUiError("Authentication error. Please refresh.");
+         return;
+      }
       const token = await getToken();
-
-      const response = await fetch(createFullEndpoint(`warps`), {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      let shouldHandleError = false;
       let responseJson;
-      if (response.ok) {
+      let responseOk = false;
+
+      try {
+        const response = await fetch(createFullEndpoint(`warps`), {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        responseOk = response.ok;
         responseJson = await response.json();
-        const { entities, estimatedUserTimeBalance } = responseJson;
-        console.log('Response entities:', entities);
-        const warp = entities?.warps?.[0];
-        console.log('warptoset1212', warp);
-        if (warp?.podId) {
-          setWarp(warp);
-          if (estimatedUserTimeBalance) {
-            setCalcualatedTimeRemaining(estimatedUserTimeBalance);
+
+        if (responseOk) {
+          const { entities, estimatedUserTimeBalance } = responseJson;
+          console.log('Initialize Response entities:', entities);
+          const initialWarpData = entities?.warps?.[0];
+
+          if (initialWarpData?.id && initialWarpData?.jobId) {
+            // Set initial warp state (might be IN_QUEUE)
+            setWarp(initialWarpData);
+            if (estimatedUserTimeBalance) {
+              setCalcualatedTimeRemaining(estimatedUserTimeBalance);
+            }
+            // If status is not IN_PROGRESS, start polling
+            if (initialWarpData.jobStatus !== 'IN_PROGRESS') {
+              console.log(`Warp status is ${initialWarpData.jobStatus}, starting polling.`);
+              setIsPollingWarpStatus(true);
+            } else {
+               console.log(`Warp status is already ${initialWarpData.jobStatus}.`);
+               // Mark that it was initially ready
+               setWasWarpInitiallyInProgress(true);
+            }
+          } else {
+            console.error('Initialization response missing id or jobId:', initialWarpData);
+            setUiError('Failed to initialize warp session. Response missing necessary IDs.');
           }
         } else {
-          console.log('response no podd id1212');
-          shouldHandleError = true;
+          console.error('Initialization request failed:', response.status, responseJson);
+          const errorMessage = responseJson?.message || `HTTP error ${response.status}`;
+          setUiError(
+            `Request failed: ${errorMessage}. Contact support if the problem persists.`,
+          );
         }
-      } else {
-        console.log('response not ok1212');
-        shouldHandleError = true;
-      }
-
-      if (shouldHandleError) {
-        if (!responseJson) {
-          responseJson = await response.json(); // Assuming the error details are in JSON format
-        }
-        const errorMessage = responseJson.message;
-        setUiError(
-          `Request failed with status: ${errorMessage} \ncontact@gendj.com if the problem continues`,
-        );
+      } catch (error) {
+         console.error('Error during warp initialization fetch:', error);
+         const errorMessage = responseJson?.message || (error as Error).message || 'Network error or failed to parse response.';
+          setUiError(
+            `Error initializing: ${errorMessage}. Contact support if the problem persists.`,
+          );
       }
     };
 
     const initializeLocal = () => {
-      const warp = {
+      const localWarp: Warp = { // Use Warp interface
         id: 'local',
-        podId: 'local',
-        podStatus: 'RUNNING',
+        jobId: 'local-job',
+        jobStatus: 'IN_PROGRESS', // Assume local is always ready
+        workerId: 'local-worker', // Provide a dummy workerId for local dev
       };
-      setWarp(warp);
+      setWarp(localWarp);
     };
 
     if (IS_WARP_LOCAL) {
       initializeLocal();
-    } else {
+    } else if (!warp && isLoaded) { // Only initialize if warp is not set and auth is loaded
       initializeWarp();
     }
 
     checkWebcamPermissions();
-  }, []);
+  }, [isLoaded]); // Depend on isLoaded to ensure getToken is ready
+
+  // Helper function to create a blank black JPEG blob
+  const createBlankFrameBlob = (): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = FRAME_WIDTH;
+      canvas.height = FRAME_HEIGHT;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              // Fallback or error handling if blob creation fails
+              resolve(new Blob()); 
+            }
+          },
+          'image/jpeg',
+          0.8 // Quality setting
+        );
+      } else {
+         // Fallback or error handling if context fails
+         resolve(new Blob());
+      }
+    });
+  };
+
+  // Function to send multiple blank frames
+  const sendWarmupFrames = async (socket: WebSocket, count: number) => {
+    console.log(`Sending ${count} warmup frames...`);
+    const blankBlob = await createBlankFrameBlob();
+    if (blankBlob.size > 0) { 
+        for (let i = 0; i < count; i++) {
+            if (socket.readyState === WebSocket.OPEN) {
+                try {
+                   const buffer = await blankBlob.arrayBuffer();
+                   socket.send(buffer);
+                   console.log(`Sent warmup frame ${i + 1}/${count}`);
+                } catch (error) {
+                    console.error(`Error sending warmup frame ${i+1}:`, error);
+                    break; // Stop sending if one fails
+                }
+            } else {
+                console.warn(`WebSocket closed before sending warmup frame ${i + 1}.`);
+                break;
+            }
+            // Optional small delay between frames if needed
+            // await new Promise(resolve => setTimeout(resolve, 10)); 
+        }
+         console.log("Warmup frames sent.");
+    } else {
+        console.error("Failed to create blank frame blob for warmup.");
+    }
+  };
+
+  // Polling Effect for Warp Status
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    const pollWarpStatus = async () => {
+      if (!warp?.id || !getToken) return; // Need warp ID and auth token function
+
+      console.log(`Polling status for warp ID: ${warp.id}...`);
+      try {
+        const token = await getToken();
+        const response = await fetch(createFullEndpoint(`warps/${warp.id}`), {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            credentials: 'include',
+          },
+        });
+
+        if (response.ok) {
+          const { entities, estimatedUserTimeBalance } = await response.json();
+          const updatedWarp = entities?.warps?.[0] as Warp | undefined;
+
+          if (updatedWarp) {
+            console.log('Poll response:', updatedWarp);
+            setWarp(updatedWarp); // Update the warp state with the latest data
+
+            // Update time remaining if available
+            if (estimatedUserTimeBalance) {
+               setCalcualatedTimeRemaining(estimatedUserTimeBalance);
+            }
+
+            // Check the job status
+            switch (updatedWarp.jobStatus) {
+              case 'IN_PROGRESS':
+                console.log('Warp is IN_PROGRESS. Stopping polling.');
+                setIsPollingWarpStatus(false);
+                // Initiate WebSocket connection phase
+                setIsConnectingWebSocket(true);
+                setHasWebSocketConnectedOnce(false); // Reset connection tracker
+                break;
+              case 'COMPLETED':
+              case 'FAILED':
+              case 'CANCELLED':
+                console.log(`Warp reached terminal state: ${updatedWarp.jobStatus}. Stopping polling.`);
+                setIsPollingWarpStatus(false);
+                // Handle terminal state (e.g., show error message)
+                 setUiError(`Warp session ended with status: ${updatedWarp.jobStatus}. Please refresh.`);
+                 // Ensure connecting state is false if warp ends terminally
+                 setIsConnectingWebSocket(false);
+                 if (socketRef.current) {
+                   socketRef.current.close();
+                 }
+                break;
+              case 'IN_QUEUE':
+                console.log('Warp is still IN_QUEUE. Continuing poll.');
+                // Continue polling
+                break;
+              default:
+                console.warn(`Unknown jobStatus received: ${updatedWarp.jobStatus}`);
+                // Decide how to handle unknown states - continue or stop polling?
+                break;
+            }
+          } else {
+            console.error('Polling error: Warp data not found in response entities.');
+             // Potentially stop polling if the warp disappears
+             // setIsPollingWarpStatus(false);
+             // setUiError('Warp session data lost during polling.');
+          }
+        } else {
+          console.error('Polling request failed:', response.status);
+          // Handle non-OK responses (e.g., 404 Not Found might mean the warp was deleted)
+          if (response.status === 404) {
+              console.error('Warp not found during polling. Stopping polling.');
+              setIsPollingWarpStatus(false);
+              setUiError('Warp session not found. It might have been deleted or expired.');
+          } else {
+             // Keep polling for other transient errors? Or stop after N failures?
+             console.warn('Non-fatal polling error, will retry.');
+          }
+        }
+      } catch (error) {
+        console.error('Error during warp status polling fetch:', error);
+         // Keep polling on network errors? Or stop after N failures?
+         console.warn('Fetch error during polling, will retry.');
+      }
+    };
+
+    if (isPollingWarpStatus && warp?.id) {
+      // Start polling immediately and then set interval
+      pollWarpStatus();
+      pollInterval = setInterval(pollWarpStatus, 7000); // Poll every 7 seconds
+    } else {
+       console.log('Not polling or no warp ID yet.')
+    }
+
+    // Cleanup function
+    return () => {
+      if (pollInterval) {
+        console.log('Clearing poll interval.');
+        clearInterval(pollInterval);
+      }
+    };
+  }, [isPollingWarpStatus, warp?.id, getToken]); // Re-run if polling is enabled/disabled or warp ID changes
 
   const renderFlash = () => {
     const now = Date.now();
@@ -713,7 +1056,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   }
 
   useEffect(() => {
-    const handleEscKey = event => {
+    const handleEscKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isFullBrowser) {
         setIsFullBrowser(false);
       }
@@ -728,15 +1071,21 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
   const sendPrompt = useCallback(
     (promptIndex = 1) => {
-      if (!warp?.podId) {
-        console.error('Prompt endpoint URL not available');
+      if (!warp?.workerId) {
+        console.error('Cannot send prompt: workerId not available.');
+        toast.error('Warp is not ready yet.');
         return;
       }
 
-      const promptEndpointUrl = buildPromptEndpointUrlFromPodId(
-        warp.podId,
+      const promptEndpointUrl = buildPromptEndpointUrl(
+        warp.workerId,
         promptIndex,
       );
+      if (!promptEndpointUrl) {
+        console.error('Failed to build prompt endpoint URL even with workerId.');
+        return;
+      }
+
       const encodedPrompt =
         promptIndex === 1
           ? encodeURIComponent(`${prompt} ${postText}`)
@@ -767,12 +1116,17 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     [warp, prompt, postText, secondPrompt],
   );
 
-  const sendBlendRequest = value => {
-    if (!warp?.podId) {
+  const sendBlendRequest = (value: number) => {
+    if (!warp?.workerId) {
+      console.error('Cannot send blend request: workerId not available.');
       return;
     }
-    const promptEndpointUrl = buildBlendEndpointUrlFromPodId(warp.podId);
-    const endpoint = `${promptEndpointUrl}${value}`;
+    const blendEndpointUrl = buildBlendEndpointUrl(warp.workerId);
+    if (!blendEndpointUrl) {
+      console.error('Failed to build blend endpoint URL even with workerId.');
+      return;
+    }
+    const endpoint = `${blendEndpointUrl}${value}`;
 
     fetch(endpoint, {
       method: 'POST',
@@ -786,15 +1140,15 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       });
   };
 
-  const handleSliderChange = value => {
+  const handleSliderChange = (value: number) => {
     console.log('hsc1212', value);
     const now = Date.now();
     if (now - lastBlendSendTimeRef.current >= 24) {
       sendBlendRequest(value);
       lastBlendSendTimeRef.current = now;
     } else {
-      clearTimeout(blendTimeoutIdRef.current);
-      blendTimeoutIdRef.current = setTimeout(() => {
+      if (blendTimeoutIdRef.current !== null) window.clearTimeout(blendTimeoutIdRef.current);
+      blendTimeoutIdRef.current = window.setTimeout(() => {
         sendBlendRequest(value);
         lastBlendSendTimeRef.current = Date.now();
       }, 60);
@@ -802,10 +1156,15 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   };
 
   useEffect(() => {
-    handleSliderChange(blendValue);
+    // Prevent calling handler on initial mount
+    if (isInitialBlendMount.current) {
+      isInitialBlendMount.current = false;
+    } else {
+      handleSliderChange(blendValue);
+    }
 
     return () => {
-      clearTimeout(blendTimeoutIdRef.current);
+      if (blendTimeoutIdRef.current !== null) window.clearTimeout(blendTimeoutIdRef.current);
     };
   }, [blendValue]);
 
@@ -816,29 +1175,45 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     }
 
     const endWarp = async () => {
+      if (!getToken) {
+         console.error("Authentication function not available.");
+         setUiError("Authentication error. Please refresh.");
+         return;
+       }
       const token = await getToken();
-      const response = await fetch(
-        createFullEndpoint(`warps/${warp?.id}/end`),
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            credentials: 'include',
-          },
-        },
-      );
+      try {
+         const response = await fetch(
+           createFullEndpoint(`warps/${warp?.id}/end`),
+           {
+             method: 'POST',
+             headers: {
+               Authorization: `Bearer ${token}`,
+               credentials: 'include',
+             },
+           },
+         );
 
-      const { entities } = await response.json();
-
-      const updatedWarp = entities?.warps?.[0];
-      console.log('settingendedwarp1212', updatedWarp);
-      setWarp(updatedWarp);
+         if (response.ok) {
+            const { entities } = await response.json();
+            const updatedWarp = entities?.warps?.[0];
+            console.log('settingendedwarp1212', updatedWarp);
+            setWarp(updatedWarp); // Update local warp state
+            setShowWarpEndedModal(true); // Show the modal on success
+         } else {
+            // Handle non-OK response from end warp endpoint
+            console.error('Failed to end warp:', response.status, await response.text());
+            setUiError('Failed to stop the warp session. Please try again or contact support.');
+         }
+      } catch (error) {
+         console.error('Error calling end warp endpoint:', error);
+         setUiError('An error occurred while trying to stop the warp session.');
+      }
     };
 
     if (confirm('Are you sure you want to end the warp?')) {
       endWarp();
     }
-  }, [warp?.id]);
+  }, [warp?.id, getToken]); // Include getToken in dependencies
 
   //sendframes
   useEffect(() => {
@@ -886,7 +1261,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           dx,
           dy;
 
-        if (video) {
+        if (video instanceof HTMLVideoElement) {
           frame = video;
           croppedCanvas.width = FRAME_WIDTH;
           croppedCanvas.height = FRAME_HEIGHT;
@@ -972,44 +1347,57 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     if (!document.fullscreenElement) {
       if (canvas.requestFullscreen) {
         canvas.requestFullscreen();
-      } else if (canvas.mozRequestFullScreen) {
-        // Firefox
-        canvas.mozRequestFullScreen();
-      } else if (canvas.webkitRequestFullscreen) {
-        // Chrome, Safari and Opera
-        canvas.webkitRequestFullscreen();
-      } else if (canvas.msRequestFullscreen) {
-        // IE/Edge
-        canvas.msRequestFullscreen();
       }
     } else {
       if (document.exitFullscreen) {
         document.exitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        // Firefox
-        document.mozCancelFullScreen();
-      } else if (document.webkitExitFullscreen) {
-        // Chrome, Safari and Opera
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) {
-        // IE/Edge
-        document.msExitFullscreen();
       }
     }
   };
 
+  // WebSocket Connection Effect
   useEffect(() => {
-    console.log('connectWebSocket1212', socketRef.current, warp);
-    if (!warp?.podId) {
-      console.log('WebSocket URL not available');
+    console.log(
+      'WebSocket Effect Triggered. Status:',
+       warp?.jobStatus,
+       'WorkerID:',
+       warp?.workerId
+    );
+    if (!warp?.id || warp.jobStatus !== 'IN_PROGRESS' || !warp.workerId) {
+      console.log(
+        'Conditions not met for WebSocket connection. Status:',
+         warp?.jobStatus,
+         'WorkerID:',
+         warp?.workerId
+      );
+       // Ensure socket is closed if conditions are no longer met
+       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+         console.log('Closing WebSocket because conditions are no longer met.');
+         socketRef.current.close();
+       }
       return;
     }
 
     let newSocket: WebSocket | null = null;
-    const connectWebSocket = () => {
-      const websocketUrl = buildWebsocketUrlFromPodId(warp.podId);
+    let connectAttemptTimeout: NodeJS.Timeout | null = null;
+    let initialConnectTimeout: NodeJS.Timeout | null = null;
 
+    const connectWebSocket = () => {
+      // Check again right before connection attempt
+      if (currentWarpRef.current?.jobStatus !== 'IN_PROGRESS' || !currentWarpRef.current?.workerId) {
+          console.log("Aborting connection attempt as status/workerId changed.");
+          return;
+      }
+
+      const websocketUrl = buildWebsocketUrl(currentWarpRef.current.workerId);
+      if (!websocketUrl) {
+        console.error('Cannot connect WebSocket: Worker ID not available to build URL.');
+        return;
+      }
+
+      console.log(`Attempting to connect WebSocket to: ${websocketUrl}`);
       newSocket = new WebSocket(websocketUrl);
+      socketRef.current = newSocket; // Assign immediately for potential cleanup
 
       newSocket.binaryType = 'arraybuffer';
 
@@ -1018,10 +1406,26 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         if (currentToastRef.current) {
           toast.dismiss(currentToastRef.current);
         }
+
+        // Check if warm-up is needed
+        if (wasWarpInitiallyInProgress) {
+           console.log("Warp was initially IN_PROGRESS. Skipping warm-up frames.");
+           // Connect immediately, no warm-up phase
+           setIsConnectingWebSocket(false);
+           setHasWebSocketConnectedOnce(true);
+           setIsWarmingUp(false); // Ensure warming up state is false
+        } else {
+           console.log("Warp started during this session. Starting warm-up frames.");
+           // Start warm-up phase
+           setIsWarmingUp(true);
+           if (newSocket) { 
+             sendWarmupFrames(newSocket, 4);
+           }
+        }
       };
 
       newSocket.onmessage = event => {
-        // console.log('gotframe1212');
+        // Process the received frame normally
         const blob = new Blob([event.data], { type: 'image/jpeg' });
         const url = URL.createObjectURL(blob);
 
@@ -1033,102 +1437,110 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
             ...frameTimestampsRef.current,
             Date.now(),
           ];
+          // Increment frame count after successfully adding to queue
+          setFrameCount(prev => prev + 1);
         };
         img.src = url;
       };
 
       newSocket.onclose = () => {
-        if (currentWarpRef.current?.podStatus === 'RUNNING') {
+        // Use the ref to check the *current* intended status
+        if (currentWarpRef.current?.jobStatus === 'IN_PROGRESS') {
           console.log(
-            'WebSocket connection closed. Attempting to reconnectt...',
+            'WebSocket closed unexpectedly while warp should be IN_PROGRESS. Reconnecting...',
             currentWarpRef.current,
           );
-          showWarningToast();
-          setTimeout(connectWebSocket, 1);
+          // Only show warning if it had previously connected
+          if (hasWebSocketConnectedOnce) {
+             showWarningToast();
+          }
+          // Implement exponential backoff or simple delay for reconnection
+          if (connectAttemptTimeout) clearTimeout(connectAttemptTimeout);
+          connectAttemptTimeout = setTimeout(connectWebSocket, 5000); // Reconnect after 5 seconds
         } else {
           console.log(
-            `WebSocket connection closed for warp: `,
-            currentWarpRef.current,
+            `WebSocket connection closed. Warp status is ${currentWarpRef.current?.jobStatus}. No reconnect needed.`,
+             currentWarpRef.current,
           );
+          socketRef.current = null; // Clear the ref if connection closed intentionally
+          // Ensure connecting state is false if warp stops
+          setIsConnectingWebSocket(false);
+          setHasWebSocketConnectedOnce(false);
+          setIsWarmingUp(false); 
+          setWasWarpInitiallyInProgress(false); // Reset initial state tracker on cleanup
+          if (initialConnectTimeout) {
+            clearTimeout(initialConnectTimeout);
+          }
         }
       };
 
       newSocket.onerror = error => {
-        showWarningToast();
-
+        // Only show warning toast if it had previously connected
+        if (hasWebSocketConnectedOnce) {
+           showWarningToast();
+        }
         console.error('WebSocket errorrr:', error, socketRef?.current);
       };
 
       console.log('settingCurrentSocket1212');
-      socketRef.current = newSocket;
     };
 
-    const getPodStatus = async (warpId: string) => {
-      try {
-        const token = await getToken();
-        const response = await fetch(createFullEndpoint(`warps/${warpId}`), {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            credentials: 'include',
-          },
-        });
-
-        const { entities } = await response.json();
-        const newWarp = entities?.warps?.[0];
-        console.log(
-          'got pod status on interval1212',
-          newWarp,
-          newWarp?.podStatus,
-        );
-        if (newWarp?.podStatus !== 'PENDING') {
-          setWarp(newWarp);
-        }
-      } catch (error) {
-        console.error('Error getting pod status:', error);
-      }
-    };
-
-    let podStatusInterval: NodeJS.Timeout | null = null;
-    if (warp?.podStatus === 'RUNNING') {
-      connectWebSocket();
-    } else if (warp?.podStatus === 'DEAD' || warp?.podStatus === 'ENDED') {
-      if (currentToastRef.current) {
-        toast.dismiss(currentToastRef.current);
-      }
-      toast.error('The warp has ended. Please refresh page', {
-        position: 'bottom-right',
-        autoClose: false,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        progress: undefined,
-        theme: 'dark',
-        transition: Bounce,
-      });
-    } else if (warp.podId) {
-      podStatusInterval = setInterval(() => {
-        if (warp?.podStatus === 'PENDING') {
-          getPodStatus(warp.id);
-        }
-      }, 3000);
+    // Initiate connection conditionally
+    if (wasWarpInitiallyInProgress) {
+       // If warp was already running, connect immediately
+       console.log("Warp was initially IN_PROGRESS. Attempting immediate WebSocket connection...");
+       connectWebSocket();
+    } else {
+      // If warp started during this session, add initial delay
+      console.log('Warp started this session. Scheduling initial connection attempt with delay...');
+      // Clear any existing initial timeout before setting a new one
+      if (initialConnectTimeout) clearTimeout(initialConnectTimeout);
+      
+      initialConnectTimeout = setTimeout(() => {
+          console.log('Initial delay complete. Attempting first WebSocket connection...');
+          connectWebSocket();
+      }, 3000); // 3-second initial delay
     }
 
     // Cleanup function
     return () => {
+       console.log('Cleaning up WebSocket effect...');
+       // Clear both potential timeouts
+       if (initialConnectTimeout) {
+         clearTimeout(initialConnectTimeout);
+       }
+       if (connectAttemptTimeout) {
+         clearTimeout(connectAttemptTimeout);
+       }
       if (newSocket) {
-        newSocket.close();
+         console.log('Closing WebSocket connection during cleanup.');
+         // Prevent automatic reconnection attempts during cleanup
+         newSocket.onclose = null;
+         newSocket.onerror = null;
+         newSocket.close();
+         socketRef.current = null;
       }
-
-      if (podStatusInterval) {
-        clearInterval(podStatusInterval);
-      }
+      // Clear connecting state on cleanup or if status changes
+      setIsConnectingWebSocket(false);
+      setHasWebSocketConnectedOnce(false);
+      setIsWarmingUp(false); 
+      setWasWarpInitiallyInProgress(false); // Reset initial state tracker on cleanup
     };
-  }, [warp?.id, warp?.podStatus]);
+  // Depend on the job status and worker ID being present
+  }, [warp?.jobStatus, warp?.workerId, showWarningToast]); // Added showWarningToast
 
-  const handleFileSelect = event => {
-    const file = event.target.files[0];
+  // New Effect to finalize connection state after first frame is processed
+  useEffect(() => {
+    if (isWarmingUp && frameCount > 0) {
+      setIsWarmingUp(false);
+      setIsConnectingWebSocket(false);
+      setHasWebSocketConnectedOnce(true);
+    }
+    // We only want this to run when frameCount increases *during* warm-up
+  }, [frameCount, isWarmingUp]); 
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file && file.type.startsWith('video/')) {
       const url = URL.createObjectURL(file);
 
@@ -1141,13 +1553,30 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
     videoRef.current = null;
   };
 
+  // Small inline spinner for the button
+  const ButtonSpinner = () => (
+    <svg
+      className="animate-spin h-4 w-4 text-white mx-auto"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+  );
+
   return (
     <div className="bg-[#121212] text-[#e0e0e0] font-sans flex flex-col items-center px-5">
-      {warp?.podStatus === 'PENDING' && (
+      {(warp?.jobStatus === 'IN_QUEUE' || isConnectingWebSocket) && warp?.jobStatus !== 'COMPLETED' && warp?.jobStatus !== 'FAILED' && warp?.jobStatus !== 'CANCELLED' && (
         <PendingModal
-          progress={podSetupProgress}
+          isConnecting={isConnectingWebSocket && !isWarmingUp}
+          isWarmingUp={isWarmingUp}
           handleClickEndWarp={handleClickEndWarp}
         />
+      )}
+      {showWarpEndedModal && (
+         <WarpEndedModal onClose={() => setShowWarpEndedModal(false)} />
       )}
       <h2 className="w-full text-sm sm:text-lg font-bold my-2 text-blue-400 text-center">
         Time remaining:{' '}
@@ -1174,7 +1603,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
         </select>
 
         <select
-          onChange={e => setSelectedAudioDeviceId(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedAudioDeviceId(e.target.value)}
           className={`w-full p-3 mb-5 border border-[#4a4a4a] rounded-md text-base bg-[#1e1e1e] text-[#e0e0e0]${
             audioContextRef.current ? '' : ' hidden'
           }`}
@@ -1209,6 +1638,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           }}
           placeholder="Enter prompt..."
           className="w-full p-1 sm:p-3 mb-2 border border-[#4a4a4a] rounded-md bg-[#1e1e1e] text-[#e0e0e0] resize-y min-h-[100px] text-sm sm:text-md"
+          disabled={warp?.jobStatus !== 'IN_PROGRESS'}
         />
 
         <input
@@ -1223,21 +1653,66 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           }}
           placeholder="Post text, appended to all prompts. Helps to describe yourself"
           className="w-full p-1 sm:p-3 mb-2 border border-[#4a4a4a] rounded-md bg-[#1e1e1e] text-[#e0e0e0] text-sm sm:text-md"
+          disabled={warp?.jobStatus !== 'IN_PROGRESS'}
         />
         <div className="flex flex-wrap justify-center gap-2 my-3">
           <button
             onClick={() => sendPrompt()}
-            className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0"
+            className={`bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0 ${
+              warp?.jobStatus !== 'IN_PROGRESS' ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+            disabled={warp?.jobStatus !== 'IN_PROGRESS'}
           >
             Send Prompt
           </button>
           <button
             onClick={() => {
-              isStreamingRef.current = !isStreamingRef.current;
+              const shouldStartWarping = !isStreamingRef.current;
+              if (shouldStartWarping) {
+                // Start streaming immediately
+                console.log("Start Warping click - setting isStreamingRef true");
+                isStreamingRef.current = true;
+ 
+                // Check if it's the first time starting AND required initialization
+                if (!hasClickedStartWarping && !wasWarpInitiallyInProgress) {
+                    console.log("First Start Warping click after init. Showing visual loading...");
+                    setHasClickedStartWarping(true);
+                    setIsInitialWarpingLoading(true);
+                    // Only use timeout to turn *off* the visual loading state
+                    setTimeout(() => {
+                      console.log("Visual loading period complete.");
+                      setIsInitialWarpingLoading(false);
+                    }, 5000); // Show loading for 5 seconds 
+                }
+                forceUpdate({}); // Force re-render to update button text
+              } else {
+                 // Clicking to stop
+                 console.log("Stop Warping click.");
+                 isStreamingRef.current = false;
+                 setIsInitialWarpingLoading(false); // Ensure loading stops if cancelled
+                 forceUpdate({}); // Force re-render
+              }
             }}
-            className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0"
+            className={`text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:-translate-y-0.5 active:translate-y-0 ${
+              warp?.jobStatus !== 'IN_PROGRESS'
+                ? 'bg-gray-500 opacity-50 cursor-not-allowed' // Disabled state
+                : isStreamingRef.current
+                ? 'bg-gray-600 hover:bg-gray-700' // Stop button state
+                : 'bg-[#4a90e2] hover:bg-[#3a7bd5]' // Start button state
+            }`}
+            disabled={warp?.jobStatus !== 'IN_PROGRESS'}
           >
-            {isStreamingRef.current ? 'Stop' : 'Start'} Warping
+             {/* Conditional content: Spinner or Text */} 
+            {isInitialWarpingLoading ? (
+              <span className="flex items-center justify-center">
+                 <ButtonSpinner />
+                 <span className="ml-2">Initializing warp...</span>
+              </span>
+            ) : isStreamingRef.current ? (
+              'Stop Warping'
+            ) : (
+              'Start Warping'
+            )}
           </button>
 
           <button
@@ -1354,10 +1829,12 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
                 <button
                   onClick={() => {
                     const video = videoRef.current;
-                    if (video.paused) {
-                      video.play();
-                    } else {
-                      video.pause();
+                    if (video) {
+                      if (video.paused) {
+                        video.play();
+                      } else {
+                        video.pause();
+                      }
                     }
                   }}
                   className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0 mr-2"
@@ -1375,45 +1852,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
                 </label>
               </div>
             )}
-            {/* <textarea
-              value={secondPrompt}
-              onChange={e => setSecondPrompt(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendPrompt(2);
-                }
-              }}
-              placeholder="Enter second prompt..."
-              className="w-full p-1 sm:p-3 mb-2 border border-[#4a4a4a] rounded-md bg-[#1e1e1e] text-[#e0e0e0] resize-y min-h-[100px] text-sm sm:text-md"
-            />
-            <button
-              onClick={() => sendPrompt(2)}
-              className="bg-[#4a90e2] text-[#e0e0e0] border-none py-2 px-3 rounded-md cursor-pointer text-sm transition-all hover:bg-[#3a7bd5] hover:-translate-y-0.5 active:translate-y-0"
-            >
-              Send Second Prompt
-            </button> */}
-            {/* <div className="w-full mb-4">
-              <label
-                htmlFor="blendSlider"
-                className="block text-sm font-medium text-[#e0e0e0] mb-2"
-              >
-                Blend: <span>{blendValue.toFixed(2)}</span>
-              </label>
-              <input
-                type="range"
-                id="blendSlider"
-                min={0}
-                max={1}
-                step={0.01}
-                value={blendValue}
-                onChange={e => setBlendValue(parseFloat(e.target.value))}
-                className="w-full h-2 bg-[#4a4a4a] rounded-lg appearance-none cursor-pointer"
-              />
-            </div> */}
           </div>
         )}
         {showDJMode && (
+          // @ts-ignore
           <MidiStuffPage
             sendPrompt={sendPrompt}
             prompt={prompt}
