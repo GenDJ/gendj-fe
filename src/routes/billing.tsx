@@ -39,8 +39,8 @@ export default function BillingPage() {
     },
     {
       hours: 100,
-      price: 10000,
-      label: '100 hours ($100)',
+      price: 15000,
+      label: '100 hours ($150)',
       planTitle: 'Vtuber',
       pitch: 'For vtubers looking to use real-time AI for their content',
     },
