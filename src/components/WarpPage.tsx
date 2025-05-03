@@ -79,6 +79,11 @@ const promptLibraryOptions: Option[] = [
   { value: '', label: 'Select an art style...' },
   {
     value:
+      'A psychedelic landscape',
+    label: 'Psychedelic',
+  },
+  {
+    value:
       'a super cool dj wearing headphones, rose tinted aviator sunglasses, disco colors vibrant indoors digital illustration HDR talking',
     label: 'DJ disco illustration',
   },
@@ -328,6 +333,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
   const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
+  const hiddenWebcamVideoRef = useRef<HTMLVideoElement>(null); // Ref for hidden video
 
   const lastBlendSendTimeRef = useRef(0);
   const blendTimeoutIdRef = useRef<number | null>(null);
@@ -580,6 +586,16 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
           setCurrentStream(nextStream);
           streamToCleanUp = nextStream;
+
+          // Also set the hidden video element's source
+          if (hiddenWebcamVideoRef.current) {
+            hiddenWebcamVideoRef.current.srcObject = nextStream;
+            hiddenWebcamVideoRef.current.play().catch(err => {
+               console.error("Error playing hidden video:", err);
+               // Handle potential autoplay restrictions if needed
+            });
+          }
+
         } catch (error) {
           console.error('Error getting user media:', error);
         }
@@ -592,6 +608,10 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       if (streamToCleanUp) {
         console.log('Cleaning up stream');
         streamToCleanUp.getTracks().forEach(track => track.stop());
+      }
+      // Clear hidden video source on cleanup
+      if (hiddenWebcamVideoRef.current) {
+        hiddenWebcamVideoRef.current.srcObject = null;
       }
     };
   }, [selectedDeviceId]);
@@ -1251,56 +1271,69 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
       }
 
       try {
-        const video = videoRef.current;
-        let frame,
-          scaleWidth,
-          scaleHeight,
-          scale,
-          scaledWidth,
-          scaledHeight,
-          dx,
-          dy;
+        const videoInput = videoRef.current; // For uploaded file
+        const webcamVideoInput = hiddenWebcamVideoRef.current; // For live webcam fallback
+        let frame: HTMLVideoElement | ImageBitmap | null = null;
+        let sourceWidth = FRAME_WIDTH;
+        let sourceHeight = FRAME_HEIGHT;
 
-        if (video instanceof HTMLVideoElement) {
-          frame = video;
-          croppedCanvas.width = FRAME_WIDTH;
-          croppedCanvas.height = FRAME_HEIGHT;
+        if (videoSrc && videoInput instanceof HTMLVideoElement && videoInput.readyState >= videoInput.HAVE_CURRENT_DATA) {
+          // --- Case 1: Using Uploaded Video File ---
+          frame = videoInput;
+          sourceWidth = videoInput.videoWidth;
+          sourceHeight = videoInput.videoHeight;
 
-          scaleWidth = FRAME_WIDTH / video.videoWidth;
-          scaleHeight = FRAME_HEIGHT / video.videoHeight;
-          scale = Math.max(scaleWidth, scaleHeight); // Change min to max
+        } else if (videoTrack?.readyState === 'live') {
+          // --- Case 2: Using Live Webcam ---
+          const useGrabFrame = typeof ImageCapture !== 'undefined' && 'grabFrame' in ImageCapture.prototype;
 
-          scaledWidth = video.videoWidth * scale;
-          scaledHeight = video.videoHeight * scale;
-
-          dx = (FRAME_WIDTH - scaledWidth) / 2;
-          dy = (FRAME_HEIGHT - scaledHeight) / 2;
-          croppedCtx.clearRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
-          croppedCtx.drawImage(video, dx, dy, scaledWidth, scaledHeight);
-        } else if (videoTrack.readyState === 'live') {
-          if (!imageCaptureInstance) {
-            console.log('no image capture instance1212');
-            return;
+          if (useGrabFrame && imageCaptureInstance) {
+            // Subcase 2a: ImageCapture API (grabFrame) is supported
+            try {
+               frame = await imageCaptureInstance.grabFrame();
+               sourceWidth = frame.width;
+               sourceHeight = frame.height;
+            } catch(grabError) {
+               console.warn("grabFrame failed, falling back:", grabError);
+               frame = null; // Ensure frame is null if grabFrame fails
+            }
           }
 
-          frame = await imageCaptureInstance.grabFrame();
-
-          croppedCanvas.width = FRAME_WIDTH;
-          croppedCanvas.height = FRAME_HEIGHT;
-
-          scaleWidth = FRAME_WIDTH / frame.width;
-          scaleHeight = FRAME_HEIGHT / frame.height;
-          scale = Math.min(scaleWidth, scaleHeight);
-
-          scaledWidth = frame.width * scale;
-          scaledHeight = frame.height * scale;
-
-          dx = (FRAME_WIDTH - scaledWidth) / 2;
-          dy = (FRAME_HEIGHT - scaledHeight) / 2;
-
-          croppedCtx.clearRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
-          croppedCtx.drawImage(frame, dx, dy, scaledWidth, scaledHeight);
+          // Subcase 2b: ImageCapture not supported OR grabFrame failed - use hidden video element
+          if (!frame && webcamVideoInput && webcamVideoInput.readyState >= webcamVideoInput.HAVE_CURRENT_DATA) {
+            frame = webcamVideoInput;
+            sourceWidth = webcamVideoInput.videoWidth;
+            sourceHeight = webcamVideoInput.videoHeight;
+          }
         }
+
+        if (!frame) {
+           // No valid frame source, skip this cycle
+           lastFrameTime = currentTime; // Update time to avoid tight loop
+           animationFrameId = requestAnimationFrame(sendFrame);
+           return;
+        }
+
+        // --- Draw selected frame source to cropped canvas ---
+        croppedCanvas.width = FRAME_WIDTH;
+        croppedCanvas.height = FRAME_HEIGHT;
+
+        const scaleWidth = FRAME_WIDTH / sourceWidth;
+        const scaleHeight = FRAME_HEIGHT / sourceHeight;
+        // Use Math.max for webcam letterboxing (covers less), Math.min for video file pillarboxing (covers more)
+        // Let's stick to cover/max for consistency unless specific cropping needed. Revert to Math.min if needed.
+        const scale = Math.max(scaleWidth, scaleHeight);
+
+
+        const scaledWidth = sourceWidth * scale;
+        const scaledHeight = sourceHeight * scale;
+
+        const dx = (FRAME_WIDTH - scaledWidth) / 2;
+        const dy = (FRAME_HEIGHT - scaledHeight) / 2;
+
+        croppedCtx.clearRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+        croppedCtx.drawImage(frame, dx, dy, scaledWidth, scaledHeight);
+
 
         croppedCanvas.toBlob(
           blob => {
@@ -1550,7 +1583,14 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
 
   const clearVideo = () => {
     setVideoSrc(null);
-    videoRef.current = null;
+    // Stop the video and clear src, don't assign to ref.current
+    if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = '';
+        // Optionally remove event listeners if any were added directly
+    }
+    // Note: videoRef itself still points to the DOM element,
+    // but it no longer has a source. Resetting state 'videoSrc' handles logic flow.
   };
 
   // Small inline spinner for the button
@@ -1855,7 +1895,7 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           </div>
         )}
         {showDJMode && (
-          // @ts-ignore
+          // @ts-ignore -- Removing this. Ensure MidiStuffPageProps includes 'warp: Warp | null'
           <MidiStuffPage
             sendPrompt={sendPrompt}
             prompt={prompt}
@@ -1894,6 +1934,8 @@ const GenDJ = ({ dbUser }: { dbUser: any }) => {
           />
         </div>
       </div>
+      {/* Hidden video element for webcam stream fallback */}
+      <video ref={hiddenWebcamVideoRef} playsInline muted style={{ display: 'none' }} />
       <ToastContainer
         position="bottom-right"
         autoClose={false}
