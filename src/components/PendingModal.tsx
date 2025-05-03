@@ -53,8 +53,7 @@ const PendingModal: React.FC<{
         <p className="text-md sm:text-lg mb-6 text-gray-300">{mainMessage}</p>
 
         <p className="text-md sm:text-md mb-6 text-gray-500">
-          Total startup time usually 1-3 minutes. Startup time does not count
-          against your warp time.
+          Total startup time usually 1-3 minutes.
         </p>
 
         <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
